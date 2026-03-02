@@ -7,7 +7,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bingo_event_guest_side/main.dart';
 
 void main() {
@@ -26,5 +25,33 @@ void main() {
     // Verify that our counter has incremented.
     expect(find.text('0'), findsNothing);
     expect(find.text('1'), findsOneWidget);
+  });
+
+  testWidgets('Welcome page displays correctly', (WidgetTester tester) async {
+    await tester.pumpWidget(const GuestApp());
+
+    // Verify the welcome text is displayed
+    expect(find.text('Welcome to the Bingo Game!'), findsOneWidget);
+
+    // Verify the Continue button is displayed
+    expect(find.text('Continue'), findsOneWidget);
+  });
+
+  testWidgets('Navigates to Bingo Board on Continue', (WidgetTester tester) async {
+    await tester.pumpWidget(const GuestApp());
+
+    // Tap the Continue button
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    // Verify the Bingo Board page is displayed
+    expect(find.text('Bingo Board'), findsOneWidget);
+  });
+
+  testWidgets('Bingo Board displays 25 boxes', (WidgetTester tester) async {
+    await tester.pumpWidget(const MaterialApp(home: BingoBoardPage()));
+
+    // Verify 25 boxes are displayed
+    expect(find.byType(GestureDetector), findsNWidgets(25));
   });
 }

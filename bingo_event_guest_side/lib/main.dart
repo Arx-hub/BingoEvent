@@ -1,121 +1,335 @@
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const GuestApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class GuestApp extends StatelessWidget {
+  const GuestApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Bingo Guest App',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const WelcomePage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+class WelcomePage extends StatelessWidget {
+  const WelcomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('Welcome'),
       ),
       body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            const Text(
+              'Welcome to the Bingo Game!',
+              style: TextStyle(fontSize: 24),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BingoBoardPage(),
+                  ),
+                );
+              },
+              child: const Text('Continue'),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+    );
+  }
+}
+
+class ThankYouPage extends StatelessWidget {
+  const ThankYouPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Thank You'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Thank you for your feedback!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MiniGamePage(
+                      onWin: null,
+                      onSkip: null,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Play Mini Games'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FeedbackPage extends StatelessWidget {
+  const FeedbackPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Feedback'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'We value your feedback!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const TextField(
+              decoration: InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Your Feedback',
+                hintText: 'Let us know your thoughts...',
+              ),
+              maxLines: 5,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ThankYouPage(),
+                  ),
+                );
+              },
+              child: const Text('Submit Feedback'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class BingoBoardPage extends StatefulWidget {
+  const BingoBoardPage({super.key});
+
+  @override
+  State<BingoBoardPage> createState() => _BingoBoardPageState();
+}
+
+class _BingoBoardPageState extends State<BingoBoardPage> {
+  final List<List<String>> _board = List.generate(5, (i) => List.generate(5, (j) => 'Box ${i + 1},${j + 1}'));
+  final List<List<bool>> _checkedBoxes = List.generate(5, (_) => List.generate(5, (_) => false));
+  int _checkedCount = 0;
+
+  void _checkWinCondition() {
+    // Check rows
+    for (var row in _checkedBoxes) {
+      if (row.every((box) => box)) {
+        _redirectToFeedback();
+        return;
+      }
+    }
+
+    // Check columns
+    for (int col = 0; col < 5; col++) {
+      if (_checkedBoxes.every((row) => row[col])) {
+        _redirectToFeedback();
+        return;
+      }
+    }
+
+    // Check diagonals
+    if (List.generate(5, (index) => _checkedBoxes[index][index]).every((box) => box) ||
+        List.generate(5, (index) => _checkedBoxes[index][4 - index]).every((box) => box)) {
+      _redirectToFeedback();
+    }
+  }
+
+  void _redirectToFeedback() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FeedbackPage(),
+      ),
+    );
+  }
+
+  void _showMiniGame() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MiniGamePage(
+          onWin: () {
+            Navigator.pop(context);
+            _selectBoxToMark();
+          },
+          onSkip: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _selectBoxToMark() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select a box to mark'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              crossAxisSpacing: 8.0,
+              mainAxisSpacing: 8.0,
+            ),
+            itemCount: 25,
+            itemBuilder: (context, index) {
+              final row = index ~/ 5;
+              final col = index % 5;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _board[row][col] = 'Won game';
+                    _checkedBoxes[row][col] = true;
+                  });
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _checkedBoxes[row][col] ? Colors.green : Colors.white,
+                    border: Border.all(color: Colors.black),
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _board[row][col],
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Bingo Board'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 5, // 5x5 bingo board
+            crossAxisSpacing: 8.0,
+            mainAxisSpacing: 8.0,
+          ),
+          itemCount: 25, // Total number of boxes
+          itemBuilder: (context, index) {
+            final row = index ~/ 5;
+            final col = index % 5;
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (!_checkedBoxes[row][col]) {
+                    _checkedBoxes[row][col] = true;
+                    _checkedCount++;
+                    if (_checkedCount % 3 == 0) {
+                      _showMiniGame();
+                    }
+                    _checkWinCondition();
+                  }
+                });
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _checkedBoxes[row][col] ? Colors.green : Colors.white,
+                  border: Border.all(color: Colors.black),
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                child: Center(
+                  child: Text(
+                    _board[row][col],
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class MiniGamePage extends StatelessWidget {
+  final VoidCallback? onWin;
+  final VoidCallback? onSkip;
+
+  const MiniGamePage({super.key, this.onWin, this.onSkip});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mini Game'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: onWin,
+              child: const Text('Win Game'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onSkip,
+              child: const Text('Skip Game'),
+            ),
+          ],
+        ),
       ),
     );
   }

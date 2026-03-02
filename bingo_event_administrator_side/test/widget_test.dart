@@ -7,7 +7,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bingo_event_administrator_side/main.dart';
 
 void main() {
@@ -26,5 +25,15 @@ void main() {
     // Verify that our counter has incremented.
     expect(find.text('0'), findsNothing);
     expect(find.text('1'), findsOneWidget);
+  });
+
+  testWidgets('Admin dashboard displays buttons', (WidgetTester tester) async {
+    await tester.pumpWidget(const AdminApp());
+
+    // Verify the Issue Bingo Board button is displayed
+    expect(find.text('Issue Bingo Board'), findsOneWidget);
+
+    // Verify the Modify Text Fields button is displayed
+    expect(find.text('Modify Text Fields'), findsOneWidget);
   });
 }

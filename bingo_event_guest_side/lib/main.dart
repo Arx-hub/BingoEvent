@@ -98,6 +98,33 @@ class ThankYouPage extends StatelessWidget {
 class FeedbackPage extends StatelessWidget {
   const FeedbackPage({super.key});
 
+  void _showFeedbackSentDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Feedback Sent'),
+        content: const Text('Thank you for your feedback!'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close the dialog
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const MiniGamePage(
+                    onWin: null,
+                    onSkip: null,
+                  ),
+                ),
+              );
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -107,32 +134,37 @@ class FeedbackPage extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const Text(
-              'We value your feedback!',
+              'Rate the Event',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            const TextField(
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Your Feedback',
-                hintText: 'Let us know your thoughts...',
-              ),
-              maxLines: 5,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ThankYouPage(),
-                  ),
-                );
-              },
-              child: const Text('Submit Feedback'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😡', style: TextStyle(fontSize: 32)),
+                ),
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😞', style: TextStyle(fontSize: 32)),
+                ),
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😐', style: TextStyle(fontSize: 32)),
+                ),
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😊', style: TextStyle(fontSize: 32)),
+                ),
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😍', style: TextStyle(fontSize: 32)),
+                ),
+              ],
             ),
           ],
         ),

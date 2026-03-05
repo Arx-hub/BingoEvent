@@ -1,6 +1,7 @@
-/// This file shows how to customize the Memory Game with different card sets.
-/// You can use this as a reference when you want to replace the default emoji cards.
-/// 
+// Configuration examples for Memory Game card images
+// 
+// This file shows how to customize the Memory Game with different card sets.
+// You can use this as a reference when you want to replace the default emoji cards.
 /// Simply update the cardImages list in games_registry.dart with one of these examples,
 /// or create your own custom list.
 

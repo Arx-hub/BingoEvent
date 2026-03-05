@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'minigames/games_registry.dart';
+import 'minigames/game_selection_page.dart';
 
 void main() {
   runApp(const GuestApp());
@@ -79,9 +81,8 @@ class ThankYouPage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const MiniGamePage(
-                      onWin: null,
-                      onSkip: null,
+                    builder: (context) => GameSelectionPage(
+                      onGameComplete: null,
                     ),
                   ),
                 );
@@ -95,8 +96,16 @@ class ThankYouPage extends StatelessWidget {
   }
 }
 
-class FeedbackPage extends StatelessWidget {
+class FeedbackPage extends StatefulWidget {
   const FeedbackPage({super.key});
+
+  @override
+  State<FeedbackPage> createState() => _FeedbackPageState();
+}
+
+class _FeedbackPageState extends State<FeedbackPage> {
+  int? _selectedFeedback;
+  final List<String> _feedbackEmojis = ['😞', '😕', '😐', '🙂', '😄'];
 
   @override
   Widget build(BuildContext context) {
@@ -107,31 +116,63 @@ class FeedbackPage extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
               'We value your feedback!',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            const TextField(
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Your Feedback',
-                hintText: 'Let us know your thoughts...',
-              ),
-              maxLines: 5,
+            const Text(
+              'How was your experience?',
+              style: TextStyle(fontSize: 16),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ThankYouPage(),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(5, (index) {
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedFeedback = index;
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(12.0),
+                    decoration: BoxDecoration(
+                      color: _selectedFeedback == index
+                          ? Colors.blue.withOpacity(0.3)
+                          : Colors.transparent,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _selectedFeedback == index
+                            ? Colors.blue
+                            : Colors.grey,
+                        width: _selectedFeedback == index ? 2.0 : 1.0,
+                      ),
+                    ),
+                    child: Text(
+                      _feedbackEmojis[index],
+                      style: const TextStyle(fontSize: 48),
+                    ),
                   ),
                 );
-              },
+              }),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: _selectedFeedback != null
+                  ? () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ThankYouPage(),
+                        ),
+                      );
+                    }
+                  : null,
               child: const Text('Submit Feedback'),
             ),
           ],
@@ -187,15 +228,19 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
   }
 
   void _showMiniGame() {
+    final randomGame = GamesRegistry.getRandomGame();
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MiniGamePage(
-          onWin: () {
+        builder: (context) => randomGame.gamePageBuilder(
+          context,
+          () {
+            // On win: Pop game and show box selection
             Navigator.pop(context);
             _selectBoxToMark();
           },
-          onSkip: () {
+          () {
+            // On skip: Pop back to bingo board
             Navigator.pop(context);
           },
         ),
@@ -303,34 +348,4 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
   }
 }
 
-class MiniGamePage extends StatelessWidget {
-  final VoidCallback? onWin;
-  final VoidCallback? onSkip;
 
-  const MiniGamePage({super.key, this.onWin, this.onSkip});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mini Game'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: onWin,
-              child: const Text('Win Game'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: onSkip,
-              child: const Text('Skip Game'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

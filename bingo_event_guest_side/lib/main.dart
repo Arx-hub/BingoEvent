@@ -99,6 +99,33 @@ class ThankYouPage extends StatelessWidget {
 class FeedbackPage extends StatefulWidget {
   const FeedbackPage({super.key});
 
+  void _showFeedbackSentDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Feedback Sent'),
+        content: const Text('Thank you for your feedback!'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close the dialog
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const MiniGamePage(
+                    onWin: null,
+                    onSkip: null,
+                  ),
+                ),
+              );
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   State<FeedbackPage> createState() => _FeedbackPageState();
 }
@@ -120,7 +147,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
-              'We value your feedback!',
+              'Rate the Event',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
@@ -174,6 +201,30 @@ class _FeedbackPageState extends State<FeedbackPage> {
                     }
                   : null,
               child: const Text('Submit Feedback'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😡', style: TextStyle(fontSize: 32)),
+                ),
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😞', style: TextStyle(fontSize: 32)),
+                ),
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😐', style: TextStyle(fontSize: 32)),
+                ),
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😊', style: TextStyle(fontSize: 32)),
+                ),
+                GestureDetector(
+                  onTap: () => _showFeedbackSentDialog(context),
+                  child: const Text('😍', style: TextStyle(fontSize: 32)),
+                ),
+              ],
             ),
           ],
         ),

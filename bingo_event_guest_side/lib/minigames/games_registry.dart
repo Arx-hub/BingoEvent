@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'memory_game/memory_game.dart';
+import 'minesweeper_game/minesweeper_game.dart';
 
 class GameConfig {
   final String id;
@@ -30,7 +31,15 @@ class GamesRegistry {
         onSkip: onSkip,
       ),
     ),
-    // Add more games here as they are created
+    GameConfig(
+      id: 'minesweeper_game',
+      name: 'Minesweeper',
+      description: 'Reveal safe squares and avoid mines',
+      gamePageBuilder: (context, onWin, onSkip) => MinesweeperGamePage(
+        onWin: onWin,
+        onSkip: onSkip,
+      ),
+    ),
   ];
 
   static GameConfig getGameById(String id) {

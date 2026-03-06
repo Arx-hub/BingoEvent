@@ -58,6 +58,54 @@ class WelcomePage extends StatelessWidget {
   }
 }
 
+class BingoWinPage extends StatelessWidget {
+  const BingoWinPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Bingo!'),
+        elevation: 0,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              '🎉',
+              style: TextStyle(fontSize: 80),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'You Completed Bingo!',
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FeedbackPage(),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+              ),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class ThankYouPage extends StatelessWidget {
   const ThankYouPage({super.key});
 
@@ -182,6 +230,58 @@ class _FeedbackPageState extends State<FeedbackPage> {
   }
 }
 
+class MinigameWinPage extends StatelessWidget {
+  final VoidCallback onContinue;
+
+  const MinigameWinPage({
+    super.key,
+    required this.onContinue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Congratulations!'),
+        elevation: 0,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              '🎉',
+              style: TextStyle(fontSize: 80),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'You Won!',
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'You get a free pick on the bingo board',
+              style: TextStyle(fontSize: 18, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton(
+              onPressed: onContinue,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+              ),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class BingoBoardPage extends StatefulWidget {
   const BingoBoardPage({super.key});
 
@@ -198,7 +298,7 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
     // Check rows
     for (var row in _checkedBoxes) {
       if (row.every((box) => box)) {
-        _redirectToFeedback();
+        _redirectToBingoWin();
         return;
       }
     }
@@ -206,7 +306,7 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
     // Check columns
     for (int col = 0; col < 5; col++) {
       if (_checkedBoxes.every((row) => row[col])) {
-        _redirectToFeedback();
+        _redirectToBingoWin();
         return;
       }
     }
@@ -214,15 +314,15 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
     // Check diagonals
     if (List.generate(5, (index) => _checkedBoxes[index][index]).every((box) => box) ||
         List.generate(5, (index) => _checkedBoxes[index][4 - index]).every((box) => box)) {
-      _redirectToFeedback();
+      _redirectToBingoWin();
     }
   }
 
-  void _redirectToFeedback() {
+  void _redirectToBingoWin() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const FeedbackPage(),
+        builder: (context) => const BingoWinPage(),
       ),
     );
   }
@@ -235,13 +335,27 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
         builder: (context) => randomGame.gamePageBuilder(
           context,
           () {
-            // On win: Pop game and show box selection
+            // On win: Pop game and show minigame win screen
             Navigator.pop(context);
-            _selectBoxToMark();
+            _showMinigameWinScreen();
           },
           () {
             // On skip: Pop back to bingo board
             Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showMinigameWinScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MinigameWinPage(
+          onContinue: () {
+            Navigator.pop(context);
+            _selectBoxToMark();
           },
         ),
       ),
@@ -272,6 +386,7 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
                     _checkedBoxes[row][col] = true;
                   });
                   Navigator.pop(context);
+                  _checkWinCondition();
                 },
                 child: Container(
                   decoration: BoxDecoration(

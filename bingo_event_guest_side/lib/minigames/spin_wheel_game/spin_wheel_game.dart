@@ -60,14 +60,14 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
 
     // Generate random result (0 or 1, representing red or blue)
     int resultIndex = _random.nextInt(2);
-    _wheelResult = _colors[resultIndex];
+    _wheelResult = _colors[resultIndex];  // FIXED: Direct mapping 0=red, 1=blue
 
     // Create animation
-    // Note: resultIndex 0 (red) needs 180° rotation to move red to bottom
-    // resultIndex 1 (blue) needs 0° rotation to keep blue at bottom
+    // Red starts at top, needs odd multiple of π to reach bottom (arrow)
+    // Blue starts at bottom, needs even multiple of π to reach bottom (arrow)
     _spinAnimation = Tween<double>(
       begin: 0,
-      end: 15 * pi + ((1 - resultIndex) * pi), // Spin ~4 full rotations + final position
+      end: 15 * pi + (resultIndex * pi), // resultIndex 0 (red)=odd, 1 (blue)=even
     ).animate(
       CurvedAnimation(parent: _spinController, curve: Curves.easeOutCubic),
     );
@@ -232,6 +232,17 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                     ),
                   ),
 
+                  const SizedBox(height: 16),
+
+                  // Skip button
+                  ElevatedButton(
+                    onPressed: widget.onSkip,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
+                    child: const Text('Skip Game'),
+                  ),
+
                   const SizedBox(height: 20),
                 ],
               ),
@@ -280,23 +291,45 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                         ),
                         const SizedBox(height: 30),
 
-                        // Continue button
-                        ElevatedButton(
-                          onPressed: _continueAfterResult,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 50,
-                              vertical: 16,
+                        // Buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            ElevatedButton(
+                              onPressed: _continueAfterResult,
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 30,
+                                  vertical: 16,
+                                ),
+                                backgroundColor: Colors.deepPurple,
+                              ),
+                              child: const Text(
+                                'Continue',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
-                            backgroundColor: Colors.deepPurple,
-                          ),
-                          child: const Text(
-                            'Continue',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.white,
+                            ElevatedButton(
+                              onPressed: widget.onSkip,
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 30,
+                                  vertical: 16,
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                              child: const Text(
+                                'Skip Game',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),

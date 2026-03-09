@@ -4,6 +4,8 @@
 // You can use this as a reference when you want to replace the default emoji cards.
 /// Simply update the cardImages list in games_registry.dart with one of these examples,
 /// or create your own custom list.
+library;
+
 
 // Example 1: Fruit emojis (default)
 const List<String> fruitCards = [

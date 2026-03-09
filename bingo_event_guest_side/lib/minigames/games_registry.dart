@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'memory_game/memory_game.dart';
 import 'minesweeper_game/minesweeper_game.dart';
 import 'spin_wheel_game/spin_wheel_game.dart';
+import 'bottle_order_game/bottle_order_game.dart';
 
 class GameConfig {
   final String id;
@@ -46,6 +47,15 @@ class GamesRegistry {
       name: 'Spin the Wheel',
       description: 'Guess which color the wheel will land on',
       gamePageBuilder: (context, onWin, onSkip) => SpinWheelGamePage(
+        onWin: onWin,
+        onSkip: onSkip,
+      ),
+    ),
+    GameConfig(
+      id: 'bottle_order_game',
+      name: 'Bottle Order',
+      description: 'Match the hidden bottles to their correct positions',
+      gamePageBuilder: (context, onWin, onSkip) => BottleOrderGamePage(
         onWin: onWin,
         onSkip: onSkip,
       ),

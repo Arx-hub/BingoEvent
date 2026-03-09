@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'memory_game/memory_game.dart';
 import 'minesweeper_game/minesweeper_game.dart';
+import 'spin_wheel_game/spin_wheel_game.dart';
 
 class GameConfig {
   final String id;
@@ -36,6 +37,15 @@ class GamesRegistry {
       name: 'Minesweeper',
       description: 'Reveal safe squares and avoid mines',
       gamePageBuilder: (context, onWin, onSkip) => MinesweeperGamePage(
+        onWin: onWin,
+        onSkip: onSkip,
+      ),
+    ),
+    GameConfig(
+      id: 'spin_wheel_game',
+      name: 'Spin the Wheel',
+      description: 'Guess which color the wheel will land on',
+      gamePageBuilder: (context, onWin, onSkip) => SpinWheelGamePage(
         onWin: onWin,
         onSkip: onSkip,
       ),

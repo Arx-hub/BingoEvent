@@ -187,19 +187,19 @@ class _MinesweeperGamePageState extends State<MinesweeperGamePage> {
       body: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(12.0),
             child: Column(
               children: [
                 Text(
                   'Safe squares: $_revealedSafeSquares / $_totalSafeSquares',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 14),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 if (_won)
                   const Text(
                     '🎉 YOU WON!',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.green,
                     ),
@@ -209,14 +209,15 @@ class _MinesweeperGamePageState extends State<MinesweeperGamePage> {
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(12.0),
               child: GridView.builder(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 5,
-                  crossAxisSpacing: 8.0,
-                  mainAxisSpacing: 8.0,
+                  crossAxisSpacing: 6.0,
+                  mainAxisSpacing: 6.0,
                 ),
                 itemCount: widget.gridSize * widget.gridSize,
+                physics: const NeverScrollableScrollPhysics(),
                 itemBuilder: (context, index) {
                   final row = index ~/ widget.gridSize;
                   final col = index % widget.gridSize;
@@ -233,7 +234,7 @@ class _MinesweeperGamePageState extends State<MinesweeperGamePage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -245,14 +246,14 @@ class _MinesweeperGamePageState extends State<MinesweeperGamePage> {
                             _initializeGame();
                           });
                         },
-                  child: const Text('Restart Game'),
+                  child: const Text('Restart'),
                 ),
                 ElevatedButton(
                   onPressed: _gameOver || _won ? null : widget.onSkip,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                   ),
-                  child: const Text('Skip Game'),
+                  child: const Text('Skip'),
                 ),
               ],
             ),
@@ -328,7 +329,7 @@ class MinesweeperSquare extends StatelessWidget {
     if (isFlagged && !isRevealed) {
       return const Text(
         '🚩',
-        style: TextStyle(fontSize: 24),
+        style: TextStyle(fontSize: 32),
       );
     }
 
@@ -339,7 +340,7 @@ class MinesweeperSquare extends StatelessWidget {
     if (isMine) {
       return const Text(
         '💣',
-        style: TextStyle(fontSize: 24),
+        style: TextStyle(fontSize: 32),
       );
     }
 
@@ -350,7 +351,7 @@ class MinesweeperSquare extends StatelessWidget {
     return Text(
       '$adjacentMines',
       style: const TextStyle(
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: FontWeight.bold,
         color: Colors.blue,
       ),

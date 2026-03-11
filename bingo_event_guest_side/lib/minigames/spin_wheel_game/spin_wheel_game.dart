@@ -124,22 +124,22 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                   const Text(
                     'Make a Guess!',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   
                   const Text(
                     'Which color will the arrow land on?',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       color: Colors.grey,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 20),
 
                   // Color selection buttons
                   if (!_hasSpun)
@@ -147,12 +147,12 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _buildColorButton('Red', Colors.red, 0),
-                        const SizedBox(width: 20),
+                        const SizedBox(width: 16),
                         _buildColorButton('Blue', Colors.blue, 1),
                       ],
                     ),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 20),
 
                   // Wheel display
                   Center(
@@ -161,14 +161,14 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                         // Arrow pointing down
                         const Icon(
                           Icons.arrow_drop_down,
-                          size: 40,
+                          size: 32,
                           color: Colors.black87,
                         ),
                         
-                        // Wheel
+                        // Wheel - Responsive size for mobile
                         SizedBox(
-                          width: 280,
-                          height: 280,
+                          width: 220,
+                          height: 220,
                           child: AnimatedBuilder(
                             animation: _spinAnimation,
                             builder: (context, child) {
@@ -176,7 +176,7 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                                 angle: _spinAnimation.value,
                                 child: CustomPaint(
                                   painter: WheelPainter(),
-                                  size: const Size(280, 280),
+                                  size: const Size(220, 220),
                                 ),
                               );
                             },
@@ -186,14 +186,14 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                     ),
                   ),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 20),
 
                   // Display of player's guess
                   if (_playerGuess != null)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 12,
+                        vertical: 8,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
@@ -202,29 +202,29 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                       child: Text(
                         'You guessed: ${_playerGuess![0].toUpperCase()}${_playerGuess!.substring(1)}',
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 16),
 
                   // Spin button
                   ElevatedButton.icon(
                     onPressed: _hasSpun ? null : _spinWheel,
-                    icon: const Icon(Icons.casino, size: 28),
+                    icon: const Icon(Icons.casino, size: 24),
                     label: const Text(
                       'SPIN THE WHEEL',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 14,
                         color: Colors.white,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 18,
+                        horizontal: 24,
+                        vertical: 12,
                       ),
                       backgroundColor:
                           _hasSpun ? Colors.grey : Colors.deepPurple,
@@ -232,7 +232,7 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
                   // Skip button
                   ElevatedButton(
@@ -243,7 +243,7 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                     child: const Text('Skip Game'),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -352,35 +352,35 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
           color: color,
           borderRadius: BorderRadius.circular(12),
           border: isSelected
-              ? Border.all(color: Colors.black87, width: 4)
+              ? Border.all(color: Colors.black87, width: 3)
               : null,
           boxShadow: isSelected
               ? [
                   BoxShadow(
                     color: color.withOpacity(0.6),
-                    blurRadius: 10,
-                    spreadRadius: 2,
+                    blurRadius: 8,
+                    spreadRadius: 1,
                   ),
                 ]
               : null,
         ),
         padding: const EdgeInsets.symmetric(
-          horizontal: 30,
-          vertical: 20,
+          horizontal: 20,
+          vertical: 12,
         ),
         child: Column(
           children: [
             Icon(
               isSelected ? Icons.check_circle : Icons.circle_outlined,
               color: Colors.white,
-              size: 32,
+              size: 24,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               label,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
               ),
             ),

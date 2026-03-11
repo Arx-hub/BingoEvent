@@ -305,39 +305,39 @@ class _BottleOrderGamePageState extends State<BottleOrderGamePage> {
         children: [
           // Attempts Counter
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(12.0),
             child: Column(
               children: [
                 Text(
                   'Attempts Left: $_attemptsLeft',
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.orange,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 const Text(
                   'Match the hidden bottles to their correct positions',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
           ),
           
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           
           // Hidden Bottles Section (Example)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Hidden Bottles:',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 // Hidden Bottles - Only show revealed bottles after game ends
                 if (_barrierRemoved)
                   Container(
@@ -349,9 +349,19 @@ class _BottleOrderGamePageState extends State<BottleOrderGamePage> {
                         children: List.generate(5, (index) {
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                            child: _buildBottleSimple(
-                              _hiddenBottles[index],
-                              size: 50,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildBottleSimple(
+                                  _hiddenBottles[index],
+                                  size: 50,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '#${index + 1}',
+                                  style: const TextStyle(fontSize: 10),
+                                ),
+                              ],
                             ),
                           );
                         }),
@@ -361,7 +371,7 @@ class _BottleOrderGamePageState extends State<BottleOrderGamePage> {
                 else
                   // Barrier - Completely solid cover while playing
                   Container(
-                    constraints: const BoxConstraints(minHeight: 120),
+                    constraints: const BoxConstraints(minHeight: 150),
                     decoration: BoxDecoration(
                       color: Colors.grey[300],
                       borderRadius: BorderRadius.circular(8),
@@ -392,19 +402,19 @@ class _BottleOrderGamePageState extends State<BottleOrderGamePage> {
             ),
           ),
           
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
           
           // Your Bottles Section
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Your Bottles (drag to reorder):',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -421,10 +431,10 @@ class _BottleOrderGamePageState extends State<BottleOrderGamePage> {
                               isGameEnded: _gameEnded,
                               onReorder: _swapBottles,
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 4),
                             Text(
                               'Pos ${index + 1}',
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(fontSize: 10),
                             ),
                           ],
                         ),
@@ -441,14 +451,14 @@ class _BottleOrderGamePageState extends State<BottleOrderGamePage> {
           // Game Status Message
           if (_barrierRemoved)
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(8.0),
               child: Column(
                 children: [
                   if (_won)
                     const Text(
                       '🎉 YOU WON! You matched all bottles correctly!',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: Colors.green,
                       ),
@@ -457,12 +467,12 @@ class _BottleOrderGamePageState extends State<BottleOrderGamePage> {
                     const Text(
                       '❌ Game Over! The bottles did not match.',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: Colors.red,
                       ),
                     ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: _won ? widget.onWin : widget.onSkip,
                     style: ElevatedButton.styleFrom(
@@ -476,33 +486,38 @@ class _BottleOrderGamePageState extends State<BottleOrderGamePage> {
           
           // Buttons
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(8.0),
             child: Column(
               children: [
                 if (!_gameEnded)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 6.0,
+                    runSpacing: 6.0,
                     children: [
                       ElevatedButton(
                         onPressed: _restartGame,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         ),
-                        child: const Text('Restart'),
+                        child: const Text('Restart', style: TextStyle(fontSize: 12)),
                       ),
                       ElevatedButton(
                         onPressed: _onSubmitAttempt,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         ),
-                        child: const Text('Submit Attempt'),
+                        child: const Text('Submit', style: TextStyle(fontSize: 12)),
                       ),
                       ElevatedButton(
                         onPressed: widget.onSkip,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         ),
-                        child: const Text('Skip Game'),
+                        child: const Text('Skip', style: TextStyle(fontSize: 12)),
                       ),
                     ],
                   )

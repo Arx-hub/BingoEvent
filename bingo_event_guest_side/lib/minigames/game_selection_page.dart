@@ -47,16 +47,16 @@ class GameSelectionPage extends StatelessWidget {
         title: const Text('Select a Game'),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(8.0),
         child: ListView.builder(
           itemCount: GamesRegistry.availableGames.length,
           itemBuilder: (context, index) {
             final game = GamesRegistry.availableGames[index];
             return Card(
-              margin: const EdgeInsets.symmetric(vertical: 8.0),
+              margin: const EdgeInsets.symmetric(vertical: 6.0),
               child: ListTile(
-                title: Text(game.name),
-                subtitle: Text(game.description),
+                title: Text(game.name, style: const TextStyle(fontSize: 14)),
+                subtitle: Text(game.description, style: const TextStyle(fontSize: 12)),
                 trailing: ElevatedButton(
                   onPressed: () => _startGame(context, game),
                   child: const Text('Play'),
@@ -93,26 +93,26 @@ class GameWinPage extends StatelessWidget {
           children: [
             const Text(
               '🎉',
-              style: TextStyle(fontSize: 80),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'You Won!',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 60),
             ),
             const SizedBox(height: 16),
+            const Text(
+              'You Won!',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
             Text(
               gameName,
-              style: const TextStyle(fontSize: 18, color: Colors.grey),
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: onContinue,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+                  horizontal: 24,
+                  vertical: 12,
                 ),
               ),
               child: const Text('Continue'),

@@ -36,10 +36,10 @@ class WelcomePage extends StatelessWidget {
           children: [
             const Text(
               'Welcome to the Bingo Game!',
-              style: TextStyle(fontSize: 24),
+              style: TextStyle(fontSize: 18),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
@@ -74,14 +74,14 @@ class BingoWinPage extends StatelessWidget {
           children: [
             const Text(
               '🎉',
-              style: TextStyle(fontSize: 80),
+              style: TextStyle(fontSize: 60),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             const Text(
               'You Completed Bingo!',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
@@ -93,8 +93,8 @@ class BingoWinPage extends StatelessWidget {
               },
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+                  horizontal: 24,
+                  vertical: 12,
                 ),
               ),
               child: const Text('Continue'),
@@ -121,9 +121,9 @@ class ThankYouPage extends StatelessWidget {
           children: [
             const Text(
               'Thank you for your feedback!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
@@ -162,21 +162,21 @@ class _FeedbackPageState extends State<FeedbackPage> {
         title: const Text('Feedback'),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
               'We value your feedback!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             const Text(
               'How was your experience?',
-              style: TextStyle(fontSize: 16),
+              style: TextStyle(fontSize: 14),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: List.generate(5, (index) {
@@ -188,7 +188,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.all(12.0),
+                    padding: const EdgeInsets.all(8.0),
                     decoration: BoxDecoration(
                       color: _selectedFeedback == index
                           ? Colors.blue.withValues(alpha: 0.3)
@@ -203,13 +203,13 @@ class _FeedbackPageState extends State<FeedbackPage> {
                     ),
                     child: Text(
                       _feedbackEmojis[index],
-                      style: const TextStyle(fontSize: 48),
+                      style: const TextStyle(fontSize: 32),
                     ),
                   ),
                 );
               }),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _selectedFeedback != null
                   ? () {
@@ -251,26 +251,26 @@ class MinigameWinPage extends StatelessWidget {
           children: [
             const Text(
               '🎉',
-              style: TextStyle(fontSize: 80),
+              style: TextStyle(fontSize: 60),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             const Text(
               'You Won!',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             const Text(
               'You get a free pick on the bingo board',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
+              style: TextStyle(fontSize: 14, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: onContinue,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+                  horizontal: 24,
+                  vertical: 12,
                 ),
               ),
               child: const Text('Continue'),
@@ -416,47 +416,51 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
       appBar: AppBar(
         title: const Text('Bingo Board'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5, // 5x5 bingo board
-            crossAxisSpacing: 8.0,
-            mainAxisSpacing: 8.0,
-          ),
-          itemCount: 25, // Total number of boxes
-          itemBuilder: (context, index) {
-            final row = index ~/ 5;
-            final col = index % 5;
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  if (!_checkedBoxes[row][col]) {
-                    _checkedBoxes[row][col] = true;
-                    _checkedCount++;
-                    if (_checkedCount % 3 == 0) {
-                      _showMiniGame();
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5, // 5x5 bingo board
+              crossAxisSpacing: 6.0,
+              mainAxisSpacing: 6.0,
+            ),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 25, // Total number of boxes
+            itemBuilder: (context, index) {
+              final row = index ~/ 5;
+              final col = index % 5;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (!_checkedBoxes[row][col]) {
+                      _checkedBoxes[row][col] = true;
+                      _checkedCount++;
+                      if (_checkedCount % 3 == 0) {
+                        _showMiniGame();
+                      }
+                      _checkWinCondition();
                     }
-                    _checkWinCondition();
-                  }
-                });
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  color: _checkedBoxes[row][col] ? Colors.green : Colors.white,
-                  border: Border.all(color: Colors.black),
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: Center(
-                  child: Text(
-                    _board[row][col],
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12),
+                  });
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _checkedBoxes[row][col] ? Colors.green : Colors.white,
+                    border: Border.all(color: Colors.black),
+                    borderRadius: BorderRadius.circular(6.0),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _board[row][col],
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 13),
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

@@ -112,10 +112,10 @@ class _MemoryGamePageState extends State<MemoryGamePage> {
       body: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(10.0),
             child: Text(
               'Pairs found: $_matchedPairs / ${_cards.length ~/ 2}',
-              style: Theme.of(context).textTheme.headlineSmall,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16),
             ),
           ),
           Expanded(
@@ -123,10 +123,11 @@ class _MemoryGamePageState extends State<MemoryGamePage> {
               padding: const EdgeInsets.all(8.0),
               child: GridView.builder(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  crossAxisSpacing: 8.0,
-                  mainAxisSpacing: 8.0,
+                  crossAxisCount: 5,
+                  crossAxisSpacing: 6.0,
+                  mainAxisSpacing: 6.0,
                 ),
+                physics: const NeverScrollableScrollPhysics(),
                 itemCount: _cards.length,
                 itemBuilder: (context, index) {
                   return GestureDetector(
@@ -142,7 +143,7 @@ class _MemoryGamePageState extends State<MemoryGamePage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -152,14 +153,14 @@ class _MemoryGamePageState extends State<MemoryGamePage> {
                       _initializeGame();
                     });
                   },
-                  child: const Text('Restart Game'),
+                  child: const Text('Restart'),
                 ),
                 ElevatedButton(
                   onPressed: widget.onSkip,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                   ),
-                  child: const Text('Skip Game'),
+                  child: const Text('Skip'),
                 ),
               ],
             ),
@@ -209,12 +210,12 @@ class MemoryCard extends StatelessWidget {
         child: isFlipped || isMatched
             ? Text(
                 cardContent,
-                style: const TextStyle(fontSize: 32),
+                style: const TextStyle(fontSize: 36),
               )
             : const Icon(
                 Icons.public,
                 color: Colors.white,
-                size: 40,
+                size: 32,
               ),
       ),
     );

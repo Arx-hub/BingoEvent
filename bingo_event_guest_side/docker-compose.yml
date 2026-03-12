@@ -1,0 +1,6 @@
+services:
+  bingo-guest:
+    build: .
+    ports:
+      - "8081:80"
+    container_name: bingo_guest_container

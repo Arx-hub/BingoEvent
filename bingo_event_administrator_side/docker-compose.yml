@@ -1,0 +1,6 @@
+services:
+  bingo-admin:
+    build: .
+    ports:
+      - "8082:80"
+    container_name: bingo_admin_container

@@ -114,8 +114,8 @@ class _DraggableBottleWidgetState extends State<DraggableBottleWidget>
               ],
             );
           },
-          onAcceptWithDetails: (draggedIndex) {
-            widget.onReorder(draggedIndex, widget.index);
+          onAcceptWithDetails: (details) {
+            widget.onReorder(details.data, widget.index);
           },
         ),
       ),

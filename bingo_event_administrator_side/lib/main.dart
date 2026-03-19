@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const AdminApp());
@@ -665,44 +667,240 @@ class MiniGamePage extends StatelessWidget {
   }
 }
 
-class FeedbackTab extends StatelessWidget {
+class FeedbackTab extends StatefulWidget {
   const FeedbackTab({super.key});
+
+  @override
+  State<FeedbackTab> createState() => _FeedbackTabState();
+}
+
+class _FeedbackTabState extends State<FeedbackTab> {
+  final String apiUrl = "http://localhost:5000/api/bingo";
+  bool _isLoading = false;
+  String _message = '';
+  bool _isSuccess = false;
+  List<dynamic> _helloWorlds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHelloWorlds();
+  }
+
+  Future<void> _writeHelloWorld() async {
+    setState(() {
+      _isLoading = true;
+      _message = '';
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('$apiUrl/hello-world'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _isSuccess = true;
+          _message =
+              'Success! Entry ID: ${data['entryId']} - Created at: ${data['createdAt']}';
+        });
+        // Reload the hello worlds list
+        await _loadHelloWorlds();
+      } else {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _isSuccess = false;
+          _message = 'Error: ${data['message'] ?? 'Unknown error'}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isSuccess = false;
+        _message =
+            'Error connecting to API: $e\n\nMake sure:\n1. API is running on localhost:5000\n2. Docker containers are started\n3. Check CORS settings if running separately';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadHelloWorlds() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$apiUrl/hello-world'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _helloWorlds = data['entries'] ?? [];
+        });
+      }
+    } catch (e) {
+      // Silently fail for loading
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DropdownButtonFormField<String>(
-              items: const [
-                DropdownMenuItem(value: 'Event 1', child: Text('Event 1')),
-                DropdownMenuItem(value: 'Event 2', child: Text('Event 2')),
-              ],
-              onChanged: (value) {},
-              decoration: const InputDecoration(
-                labelText: 'Select Event',
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Hello World Database Test',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: 5, // Placeholder for feedback count
-                itemBuilder: (context, index) {
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text('Feedback ${index + 1} for the selected event.'),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  border: Border.all(color: Colors.blue),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'API Endpoint: http://localhost:5000/api/bingo/hello-world\n\n'
+                  'POST: Write "Hello World" to database\n'
+                  'GET: Retrieve all entries\n\n'
+                  'Use Postman to verify:\n'
+                  'POST http://localhost:5000/api/bingo/hello-world\n'
+                  'GET http://localhost:5000/api/bingo/hello-world',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _writeHelloWorld,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 32, vertical: 16),
+                  backgroundColor: Colors.green,
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Write Hello World to Database',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 16),
+              if (_message.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _isSuccess ? Colors.green.shade50 : Colors.red.shade50,
+                    border: Border.all(
+                        color:
+                            _isSuccess ? Colors.green : Colors.red),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _message,
+                    style: TextStyle(
+                      color:
+                          _isSuccess ? Colors.green.shade900 : Colors.red.shade900,
+                      fontSize: 14,
                     ),
-                  );
-                },
+                  ),
+                ),
+              const SizedBox(height: 32),
+              const Text(
+                'Database Entries (Last 10)',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              if (_helloWorlds.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'No entries yet. Click the button above to create one!',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _helloWorlds.length,
+                  itemBuilder: (context, index) {
+                    final entry = _helloWorlds[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'ID: ${entry['id']}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  '${index + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Message: ${entry['message']}',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Created: ${entry['createdAt']}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _loadHelloWorlds,
+        tooltip: 'Refresh',
+        child: const Icon(Icons.refresh),
       ),
     );
   }

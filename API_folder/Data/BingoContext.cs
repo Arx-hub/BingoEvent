@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using System;
 
 namespace BingoEvent.API.Data
 {
@@ -11,6 +12,7 @@ namespace BingoEvent.API.Data
         public DbSet<WelcomePage> WelcomePages { get; set; }
         public DbSet<BingoBoard> BingoBoards { get; set; }
         public DbSet<Game> Games { get; set; }
+        public DbSet<HelloWorldEntry> HelloWorldEntries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -59,5 +61,12 @@ namespace BingoEvent.API.Data
     {
         public int Id { get; set; }
         public string Name { get; set; }
+    }
+
+    public class HelloWorldEntry
+    {
+        public int Id { get; set; }
+        public string Message { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 }

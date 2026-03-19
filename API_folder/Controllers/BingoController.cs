@@ -1,11 +1,32 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Cors;
+using BingoEvent.API.Data;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace BingoEvent.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [EnableCors("AllowAll")]
     public class BingoController : ControllerBase
     {
+        private readonly BingoContext _dbContext;
+
+        public BingoController(BingoContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
+
+        /// <summary>
+        /// Health check endpoint
+        /// </summary>
+        [HttpGet("/health")]
+        public IActionResult Health()
+        {
+            return Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow });
+        }
         [HttpPost("issue-board")]
         public IActionResult IssueBoard()
         {
@@ -72,6 +93,97 @@ namespace BingoEvent.API.Controllers
             else
             {
                 return Ok(new { Message = "Mini-game skipped." });
+            }
+        }
+
+        /// <summary>
+        /// OPTIONS endpoint for CORS preflight requests
+        /// </summary>
+        [HttpOptions("hello-world")]
+        public IActionResult OptionsHelloWorld()
+        {
+            return Ok();
+        }
+
+        /// <summary>
+        /// POST endpoint to write "Hello World" to the database
+        /// Automatically creates the HelloWorldEntries table if it doesn't exist
+        /// </summary>
+        [HttpPost("hello-world")]
+        public async Task<IActionResult> WriteHelloWorld()
+        {
+            try
+            {
+                // Ensure database is created
+                await _dbContext.Database.EnsureCreatedAsync();
+
+                // Create new Hello World entry
+                var entry = new HelloWorldEntry
+                {
+                    Message = "Hello World",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                // Add to database
+                _dbContext.HelloWorldEntries.Add(entry);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    Success = true,
+                    Message = "Hello World written to database successfully",
+                    EntryId = entry.Id,
+                    CreatedAt = entry.CreatedAt,
+                    Message_Content = entry.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Success = false,
+                    Message = "Error writing to database",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve all "Hello World" entries from the database
+        /// </summary>
+        [HttpGet("hello-world")]
+        public async Task<IActionResult> GetHelloWorlds()
+        {
+            try
+            {
+                // Ensure database is created
+                await _dbContext.Database.EnsureCreatedAsync();
+
+                // Get all entries
+                var entries = _dbContext.HelloWorldEntries
+                    .OrderByDescending(e => e.CreatedAt)
+                    .ToList();
+
+                return Ok(new
+                {
+                    Success = true,
+                    Count = entries.Count,
+                    Entries = entries.Select(e => new
+                    {
+                        Id = e.Id,
+                        Message = e.Message,
+                        CreatedAt = e.CreatedAt
+                    }).ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Success = false,
+                    Message = "Error retrieving from database",
+                    Error = ex.Message
+                });
             }
         }
     }

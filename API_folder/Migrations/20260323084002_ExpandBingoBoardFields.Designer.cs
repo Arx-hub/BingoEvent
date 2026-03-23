@@ -3,6 +3,7 @@ using System;
 using BingoEvent.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace APIfolder.Migrations
 {
     [DbContext(typeof(BingoContext))]
-    partial class BingoContextModelSnapshot : ModelSnapshot
+    [Migration("20260323084002_ExpandBingoBoardFields")]
+    partial class ExpandBingoBoardFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "7.0.0");
@@ -26,18 +29,6 @@ namespace APIfolder.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Boxes")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("Id");
 
                     b.ToTable("BingoBoards");
@@ -46,11 +37,7 @@ namespace APIfolder.Migrations
                         new
                         {
                             Id = 1,
-                            Name = "Default Bingo Board",
-                            Boxes = "[]",
-                            CreatedAt = new DateTime(2026, 3, 23, 0, 0, 0),
-                            UpdatedAt = new DateTime(2026, 3, 23, 0, 0, 0),
-                            IsActive = true
+                            Name = "Default Bingo Board"
                         });
                 });
 

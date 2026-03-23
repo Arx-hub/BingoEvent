@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'services/bingo_api_service.dart';
 
 void main() {
   runApp(const AdminApp());
@@ -8,14 +9,22 @@ void main() {
 
 // Bingo Board Model
 class BingoBoard {
-  String id;
+  int? databaseId;  // Database ID from API
+  String id;  // Local ID for new boards
   String name;
   List<String> boxes; // 25 boxes for 5x5 grid
+  DateTime? createdAt;
+  DateTime? updatedAt;
+  bool isActive;
 
   BingoBoard({
+    this.databaseId,
     required this.id,
     required this.name,
     required this.boxes,
+    this.createdAt,
+    this.updatedAt,
+    this.isActive = true,
   });
 
   static BingoBoard empty() {
@@ -26,11 +35,38 @@ class BingoBoard {
     );
   }
 
+  static BingoBoard fromJson(Map<String, dynamic> json) {
+    List<String> boxes = [];
+    if (json['boxes'] is List) {
+      boxes = List<String>.from(
+        (json['boxes'] as List).map((e) => e.toString())
+      );
+    }
+    while (boxes.length < 25) {
+      boxes.add('');
+    }
+    boxes = boxes.take(25).toList();
+
+    return BingoBoard(
+      databaseId: json['id'] as int?,
+      id: (json['id'] ?? DateTime.now().millisecondsSinceEpoch).toString(),
+      name: json['name'] ?? '',
+      boxes: boxes,
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+      isActive: json['isActive'] ?? true,
+    );
+  }
+
   BingoBoard copy() {
     return BingoBoard(
+      databaseId: databaseId,
       id: id,
       name: name,
       boxes: List.from(boxes),
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      isActive: isActive,
     );
   }
 }
@@ -282,11 +318,80 @@ class BingoBoardsTab extends StatefulWidget {
 
 class _BingoBoardsTabState extends State<BingoBoardsTab> {
   List<BingoBoard> savedBoards = [];
+  bool isLoading = false;
+  String? errorMessage;
 
-  void _deleteBoard(int index) {
+  @override
+  void initState() {
+    super.initState();
+    _loadBoardsFromAPI();
+  }
+
+  Future<void> _loadBoardsFromAPI() async {
     setState(() {
-      savedBoards.removeAt(index);
+      isLoading = true;
+      errorMessage = null;
     });
+
+    try {
+      final boardsData = await BingoBoardAPI.getAllBoards();
+      final boards = boardsData
+          .map((data) => BingoBoard.fromJson(data))
+          .toList();
+      
+      setState(() {
+        savedBoards = boards;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Failed to load boards: $e';
+        isLoading = false;
+      });
+    }
+  }
+
+  void _deleteBoard(int index) async {
+    final board = savedBoards[index];
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Board'),
+        content: Text('Are you sure you want to delete "${board.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              
+              if (board.databaseId != null) {
+                try {
+                  await BingoBoardAPI.deleteBoard(board.databaseId!);
+                  setState(() {
+                    savedBoards.removeAt(index);
+                  });
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error deleting board: $e')),
+                    );
+                  }
+                }
+              } else {
+                setState(() {
+                  savedBoards.removeAt(index);
+                });
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _editBoard(int index) {
@@ -308,6 +413,26 @@ class _BingoBoardsTabState extends State<BingoBoardsTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Error: $errorMessage'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadBoardsFromAPI,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       body: Column(
         children: [
@@ -342,23 +467,35 @@ class _BingoBoardsTabState extends State<BingoBoardsTab> {
           ),
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => NewBingoBoardForm(
-                      onSave: (newBoard) {
-                        setState(() {
-                          savedBoards.add(newBoard);
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ),
-                );
-              },
-              child: const Text('Create New Bingo Board'),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _loadBoardsFromAPI,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh'),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NewBingoBoardForm(
+                          onSave: (newBoard) {
+                            setState(() {
+                              savedBoards.add(newBoard);
+                            });
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create New Board'),
+                ),
+              ],
             ),
           ),
         ],
@@ -385,6 +522,7 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
   late BingoBoard currentBoard;
   late TextEditingController boardNameController;
   late List<TextEditingController> boxControllers;
+  bool isSaving = false;
 
   @override
   void initState() {
@@ -406,7 +544,7 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
     super.dispose();
   }
 
-  void _saveBoard() {
+  Future<void> _saveBoard() async {
     if (boardNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a board name')),
@@ -414,12 +552,39 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
       return;
     }
 
-    currentBoard.name = boardNameController.text;
-    for (int i = 0; i < 25; i++) {
-      currentBoard.boxes[i] = boxControllers[i].text;
-    }
+    setState(() {
+      isSaving = true;
+    });
 
-    widget.onSave(currentBoard);
+    try {
+      currentBoard.name = boardNameController.text;
+      for (int i = 0; i < 25; i++) {
+        currentBoard.boxes[i] = boxControllers[i].text;
+      }
+
+      // Save to API
+      await BingoBoardAPI.saveBoard(
+        name: currentBoard.name,
+        boxes: currentBoard.boxes,
+        id: currentBoard.databaseId,
+      );
+
+      if (mounted) {
+        widget.onSave(currentBoard);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Board saved successfully!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving board: $e')),
+        );
+        setState(() {
+          isSaving = false;
+        });
+      }
+    }
   }
 
   void _showPreview() {
@@ -446,6 +611,7 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
                 width: 350,
                 child: TextField(
                   controller: boardNameController,
+                  enabled: !isSaving,
                   decoration: const InputDecoration(
                     labelText: 'Board Name',
                     isDense: false,
@@ -478,6 +644,7 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
                         ),
                         child: TextField(
                           controller: boxControllers[index],
+                          enabled: !isSaving,
                           maxLines: null,
                           expands: true,
                           textAlign: TextAlign.center,
@@ -498,14 +665,20 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: _showPreview,
+                    onPressed: isSaving ? null : _showPreview,
                     icon: const Icon(Icons.preview),
                     label: const Text('Preview'),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: _saveBoard,
-                    child: const Text('Save'),
+                    onPressed: isSaving ? null : _saveBoard,
+                    child: isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Save'),
                   ),
                 ],
               ),

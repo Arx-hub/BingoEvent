@@ -11,53 +11,13 @@ namespace APIfolder.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "Boxes",
-                table: "BingoBoards",
-                type: "TEXT",
-                nullable: false,
-                defaultValue: "");
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "CreatedAt",
-                table: "BingoBoards",
-                type: "TEXT",
-                nullable: false,
-                defaultValue: new DateTime(2026, 3, 23, 0, 0, 0, 0, DateTimeKind.Utc));
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "UpdatedAt",
-                table: "BingoBoards",
-                type: "TEXT",
-                nullable: false,
-                defaultValue: new DateTime(2026, 3, 23, 0, 0, 0, 0, DateTimeKind.Utc));
-
-            migrationBuilder.AddColumn<bool>(
-                name: "IsActive",
-                table: "BingoBoards",
-                type: "INTEGER",
-                nullable: false,
-                defaultValue: true);
+            // No-op: columns already added by AddBingoBoardColumns migration
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "Boxes",
-                table: "BingoBoards");
-
-            migrationBuilder.DropColumn(
-                name: "CreatedAt",
-                table: "BingoBoards");
-
-            migrationBuilder.DropColumn(
-                name: "UpdatedAt",
-                table: "BingoBoards");
-
-            migrationBuilder.DropColumn(
-                name: "IsActive",
-                table: "BingoBoards");
+            // No-op: columns managed by AddBingoBoardColumns migration
         }
     }
 }

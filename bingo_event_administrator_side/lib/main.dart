@@ -38,23 +38,23 @@ class BingoBoard {
   static BingoBoard fromJson(Map<String, dynamic> json) {
     List<String> boxes = [];
     if (json['boxes'] is List) {
-      boxes = List<String>.from(
-        (json['boxes'] as List).map((e) => e.toString())
-      );
+      boxes = (json['boxes'] as List).map((e) => e?.toString() ?? '').toList();
     }
     while (boxes.length < 25) {
       boxes.add('');
     }
     boxes = boxes.take(25).toList();
 
+    final int? dbId = json['id'] is int ? json['id'] as int : null;
+
     return BingoBoard(
-      databaseId: json['id'] as int?,
-      id: (json['id'] ?? DateTime.now().millisecondsSinceEpoch).toString(),
-      name: json['name'] ?? '',
+      databaseId: dbId,
+      id: (dbId ?? DateTime.now().millisecondsSinceEpoch).toString(),
+      name: (json['name'] ?? '').toString(),
       boxes: boxes,
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
-      isActive: json['isActive'] ?? true,
+      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
+      updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'].toString()) : null,
+      isActive: json['isActive'] == true,
     );
   }
 
@@ -63,7 +63,7 @@ class BingoBoard {
       databaseId: databaseId,
       id: id,
       name: name,
-      boxes: List.from(boxes),
+      boxes: List<String>.from(boxes),
       createdAt: createdAt,
       updatedAt: updatedAt,
       isActive: isActive,
@@ -545,7 +545,10 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
   }
 
   Future<void> _saveBoard() async {
+    print('[SaveBoard] Starting save. Name: "${boardNameController.text}", databaseId: ${currentBoard.databaseId}');
+    
     if (boardNameController.text.isEmpty) {
+      print('[SaveBoard] Name is empty, aborting save');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a board name')),
       );
@@ -562,18 +565,26 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
         currentBoard.boxes[i] = boxControllers[i].text;
       }
 
+      print('[SaveBoard] Calling API with ${currentBoard.boxes.where((b) => b.isNotEmpty).length} non-empty boxes');
+
       // Save to API
-      await BingoBoardAPI.saveBoard(
+      final response = await BingoBoardAPI.saveBoard(
         name: currentBoard.name,
         boxes: currentBoard.boxes,
         id: currentBoard.databaseId,
       );
 
+      // Update databaseId from API response (needed for edit/delete to work)
+      if (response['boardId'] != null) {
+        currentBoard.databaseId = response['boardId'] as int;
+      }
+
       if (mounted) {
-        widget.onSave(currentBoard);
+        // Show success message BEFORE onSave pops the navigator
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Board saved successfully!')),
         );
+        widget.onSave(currentBoard);
       }
     } catch (e) {
       if (mounted) {

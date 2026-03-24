@@ -116,9 +116,6 @@ namespace BingoEvent.API.Controllers
         {
             try
             {
-                // Ensure database is created
-                await _dbContext.Database.EnsureCreatedAsync();
-
                 // Create new Hello World entry
                 var entry = new HelloWorldEntry
                 {
@@ -158,9 +155,6 @@ namespace BingoEvent.API.Controllers
         {
             try
             {
-                // Ensure database is created
-                await _dbContext.Database.EnsureCreatedAsync();
-
                 // Get all entries
                 var entries = _dbContext.HelloWorldEntries
                     .OrderByDescending(e => e.CreatedAt)
@@ -193,15 +187,60 @@ namespace BingoEvent.API.Controllers
         /// POST endpoint to save a bingo board to the database
         /// </summary>
         [HttpPost("save-board")]
-        public async Task<IActionResult> SaveBoard([FromBody] SaveBoardRequest request)
+        public async Task<IActionResult> SaveBoard([FromBody] SaveBoardRequest? request)
         {
             try
             {
+                Console.WriteLine($"[SaveBoard] Received request. Request is null: {request == null}");
+                
+                if (!ModelState.IsValid)
+                {
+                    var errors = ModelState.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
+                    );
+                    Console.WriteLine($"[SaveBoard] Validation errors: {System.Text.Json.JsonSerializer.Serialize(errors)}");
+                    return BadRequest(new { Success = false, Message = "Validation failed", Errors = errors });
+                }
+
+                if (request == null)
+                    return BadRequest(new { Success = false, Message = "Request body is null." });
+
+                Console.WriteLine($"[SaveBoard] Name: {request.Name}, Id: {request.Id}, Boxes count: {request.Boxes?.Count ?? 0}");
+                
                 if (string.IsNullOrWhiteSpace(request.Name))
                     return BadRequest(new { Success = false, Message = "Board name is required." });
 
-                var board = new BingoBoard { Name = request.Name };
-                _dbContext.BingoBoards.Add(board);
+                var boxesJson = request.Boxes != null
+                    ? System.Text.Json.JsonSerializer.Serialize(request.Boxes)
+                    : "[]";
+
+                BingoBoard board;
+                if (request.Id.HasValue)
+                {
+                    board = await _dbContext.BingoBoards.FindAsync(request.Id.Value);
+                    if (board == null)
+                        return NotFound(new { Success = false, Message = "Board not found." });
+
+                    board.Name = request.Name;
+                    board.Boxes = boxesJson;
+                    board.IsActive = request.IsActive;
+                    board.UpdatedAt = DateTime.UtcNow;
+                    _dbContext.BingoBoards.Update(board);
+                }
+                else
+                {
+                    board = new BingoBoard
+                    {
+                        Name = request.Name,
+                        Boxes = boxesJson,
+                        IsActive = request.IsActive,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _dbContext.BingoBoards.Add(board);
+                }
+
                 await _dbContext.SaveChangesAsync();
 
                 return Ok(new { Success = true, Message = "Board saved.", BoardId = board.Id });
@@ -221,7 +260,18 @@ namespace BingoEvent.API.Controllers
             try
             {
                 var boards = await _dbContext.BingoBoards.ToListAsync();
-                return Ok(new { Success = true, Count = boards.Count, Boards = boards });
+                var result = boards.Select(b => new
+                {
+                    b.Id,
+                    b.Name,
+                    Boxes = string.IsNullOrEmpty(b.Boxes)
+                        ? new List<string>()
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(b.Boxes),
+                    b.CreatedAt,
+                    b.UpdatedAt,
+                    b.IsActive
+                }).ToList();
+                return Ok(new { Success = true, Count = boards.Count, Boards = result });
             }
             catch (Exception ex)
             {
@@ -232,7 +282,7 @@ namespace BingoEvent.API.Controllers
         /// <summary>
         /// GET endpoint to retrieve a single bingo board by ID
         /// </summary>
-        [HttpGet("board/{id}")]
+        [HttpGet("boards/{id}")]
         public async Task<IActionResult> GetBoard(int id)
         {
             try
@@ -241,7 +291,18 @@ namespace BingoEvent.API.Controllers
                 if (board == null)
                     return NotFound(new { Success = false, Message = "Board not found." });
 
-                return Ok(new { Success = true, Board = board });
+                var result = new
+                {
+                    board.Id,
+                    board.Name,
+                    Boxes = string.IsNullOrEmpty(board.Boxes)
+                        ? new List<string>()
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(board.Boxes),
+                    board.CreatedAt,
+                    board.UpdatedAt,
+                    board.IsActive
+                };
+                return Ok(new { Success = true, Board = result });
             }
             catch (Exception ex)
             {
@@ -250,9 +311,39 @@ namespace BingoEvent.API.Controllers
         }
 
         /// <summary>
+        /// GET endpoint to load a bingo board by ID (used by Flutter admin app)
+        /// </summary>
+        [HttpGet("load-board/{id}")]
+        public async Task<IActionResult> LoadBoard(int id)
+        {
+            try
+            {
+                var board = await _dbContext.BingoBoards.FindAsync(id);
+                if (board == null)
+                    return NotFound(new { Success = false, Message = "Board not found." });
+
+                return Ok(new
+                {
+                    board.Id,
+                    board.Name,
+                    Boxes = string.IsNullOrEmpty(board.Boxes)
+                        ? new List<string>()
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(board.Boxes),
+                    board.CreatedAt,
+                    board.UpdatedAt,
+                    board.IsActive
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error loading board", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// PUT endpoint to update a bingo board
         /// </summary>
-        [HttpPut("board/{id}")]
+        [HttpPut("boards/{id}")]
         public async Task<IActionResult> UpdateBoard(int id, [FromBody] UpdateBoardRequest request)
         {
             try
@@ -263,6 +354,9 @@ namespace BingoEvent.API.Controllers
 
                 if (!string.IsNullOrWhiteSpace(request.Name))
                     board.Name = request.Name;
+                if (request.Boxes != null)
+                    board.Boxes = System.Text.Json.JsonSerializer.Serialize(request.Boxes);
+                board.UpdatedAt = DateTime.UtcNow;
 
                 _dbContext.BingoBoards.Update(board);
                 await _dbContext.SaveChangesAsync();
@@ -278,7 +372,7 @@ namespace BingoEvent.API.Controllers
         /// <summary>
         /// DELETE endpoint to delete a bingo board
         /// </summary>
-        [HttpDelete("board/{id}")]
+        [HttpDelete("boards/{id}")]
         public async Task<IActionResult> DeleteBoard(int id)
         {
             try
@@ -324,11 +418,15 @@ namespace BingoEvent.API.Controllers
 
     public class SaveBoardRequest
     {
-        public string Name { get; set; }
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public List<string>? Boxes { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 
     public class UpdateBoardRequest
     {
-        public string Name { get; set; }
+        public string? Name { get; set; }
+        public List<string>? Boxes { get; set; }
     }
 }

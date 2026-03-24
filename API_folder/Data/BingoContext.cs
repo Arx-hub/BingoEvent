@@ -23,10 +23,6 @@ namespace BingoEvent.API.Data
                 new WelcomePage { Id = 1, Name = "Default Welcome Page" }
             );
 
-            modelBuilder.Entity<BingoBoard>().HasData(
-                new BingoBoard { Id = 1, Name = "Default Bingo Board" }
-            );
-
             modelBuilder.Entity<Game>().HasData(
                 new Game { Id = 1, Name = "Default Game" }
             );
@@ -55,6 +51,10 @@ namespace BingoEvent.API.Data
     {
         public int Id { get; set; }
         public string Name { get; set; }
+        public string Boxes { get; set; } = "[]";
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 
     public class Game

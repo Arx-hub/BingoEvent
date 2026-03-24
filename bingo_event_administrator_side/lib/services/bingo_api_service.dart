@@ -12,12 +12,19 @@ class BingoBoardAPI {
   }) async {
     try {
       final url = Uri.parse('$baseUrl/save-board');
-      final body = jsonEncode({
-        'id': id,
+      final Map<String, dynamic> bodyMap = {
         'name': name,
         'boxes': boxes,
         'isActive': true,
-      });
+      };
+      // Only include id if it's not null to avoid JSON deserialization issues
+      if (id != null) {
+        bodyMap['id'] = id;
+      }
+      final body = jsonEncode(bodyMap);
+
+      print('[BingoBoardAPI] saveBoard: POST $url');
+      print('[BingoBoardAPI] saveBoard body: $body');
 
       final response = await http.post(
         url,
@@ -25,12 +32,15 @@ class BingoBoardAPI {
         body: body,
       ).timeout(const Duration(seconds: 10));
 
+      print('[BingoBoardAPI] saveBoard response: ${response.statusCode} ${response.body}');
+
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Failed to save board: ${response.statusCode}');
+        throw Exception('Failed to save board: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
+      print('[BingoBoardAPI] saveBoard error: $e');
       throw Exception('Error saving board: $e');
     }
   }
@@ -85,7 +95,7 @@ class BingoBoardAPI {
   // Delete a bingo board
   static Future<bool> deleteBoard(int id) async {
     try {
-      final url = Uri.parse('$baseUrl/board/$id');
+      final url = Uri.parse('$baseUrl/boards/$id');
       
       final response = await http.delete(
         url,

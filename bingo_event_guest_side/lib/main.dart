@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'minigames/games_registry.dart';
 import 'minigames/game_selection_page.dart';
+import 'services/api_service.dart';
 
 void main() {
   runApp(const GuestApp());
@@ -293,6 +294,73 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
   final List<List<String>> _board = List.generate(5, (i) => List.generate(5, (j) => 'Box ${i + 1},${j + 1}'));
   final List<List<bool>> _checkedBoxes = List.generate(5, (_) => List.generate(5, (_) => false));
   int _checkedCount = 0;
+  int? _boardId; // Track the saved board ID
+  bool _isSaving = false; // Track loading state
+
+  @override
+  void initState() {
+    super.initState();
+    _saveBoardToDatabase();
+  }
+
+  /// Saves the current board to the database
+  Future<void> _saveBoardToDatabase() async {
+    if (_isSaving) return; // Prevent multiple simultaneous saves
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      // Flatten the 2D board into a 1D list
+      final List<String> flatBoard = [];
+      for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < 5; j++) {
+          flatBoard.add(_board[i][j]);
+        }
+      }
+
+      // Create the board via API
+      final response = await ApiService.createBingoBoard(
+        'Bingo Board ${DateTime.now().toLocal()}',
+        flatBoard,
+      );
+
+      setState(() {
+        _boardId = response['boardId'] as int?;
+        _isSaving = false;
+      });
+
+      print('Board saved with ID: $_boardId');
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Board saved! (ID: $_boardId)'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isSaving = false;
+      });
+
+      print('Error saving board: $e');
+
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving board: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   void _checkWinCondition() {
     // Check rows
@@ -415,53 +483,103 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bingo Board'),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 5, // 5x5 bingo board
-              crossAxisSpacing: 6.0,
-              mainAxisSpacing: 6.0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Center(
+              child: _boardId != null
+                  ? Text(
+                      'Board ID: $_boardId',
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                    )
+                  : _isSaving
+                      ? const SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            strokeWidth: 2.0,
+                          ),
+                        )
+                      : const Text(
+                          'Not saved',
+                          style: TextStyle(color: Colors.red, fontSize: 14),
+                        ),
             ),
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 25, // Total number of boxes
-            itemBuilder: (context, index) {
-              final row = index ~/ 5;
-              final col = index % 5;
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    if (!_checkedBoxes[row][col]) {
-                      _checkedBoxes[row][col] = true;
-                      _checkedCount++;
-                      if (_checkedCount % 3 == 0) {
-                        _showMiniGame();
-                      }
-                      _checkWinCondition();
-                    }
-                  });
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: _checkedBoxes[row][col] ? Colors.green : Colors.white,
-                    border: Border.all(color: Colors.black),
-                    borderRadius: BorderRadius.circular(6.0),
-                  ),
-                  child: Center(
-                    child: Text(
-                      _board[row][col],
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-                ),
-              );
-            },
           ),
-        ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Save button at the top
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: ElevatedButton.icon(
+              onPressed: _isSaving ? null : _saveBoardToDatabase,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        strokeWidth: 2.0,
+                      ),
+                    )
+                  : const Icon(Icons.save),
+              label: Text(_isSaving ? 'Saving...' : 'Save Board'),
+            ),
+          ),
+          // Bingo board grid
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5, // 5x5 bingo board
+                    crossAxisSpacing: 6.0,
+                    mainAxisSpacing: 6.0,
+                  ),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 25, // Total number of boxes
+                  itemBuilder: (context, index) {
+                    final row = index ~/ 5;
+                    final col = index % 5;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          if (!_checkedBoxes[row][col]) {
+                            _checkedBoxes[row][col] = true;
+                            _checkedCount++;
+                            if (_checkedCount % 3 == 0) {
+                              _showMiniGame();
+                            }
+                            _checkWinCondition();
+                          }
+                        });
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _checkedBoxes[row][col] ? Colors.green : Colors.white,
+                          border: Border.all(color: Colors.black),
+                          borderRadius: BorderRadius.circular(6.0),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _board[row][col],
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

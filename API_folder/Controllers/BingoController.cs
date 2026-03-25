@@ -391,6 +391,264 @@ namespace BingoEvent.API.Controllers
                 return StatusCode(500, new { Success = false, Message = "Error deleting board", Error = ex.Message });
             }
         }
+
+        // ==================== Welcome Page Endpoints ====================
+
+        /// <summary>
+        /// GET endpoint to retrieve all welcome pages
+        /// </summary>
+        [HttpGet("welcome-pages")]
+        public async Task<IActionResult> GetWelcomePages()
+        {
+            try
+            {
+                var pages = await _dbContext.WelcomePages.ToListAsync();
+                var result = pages.Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    p.Title,
+                    p.Subtitle
+                }).ToList();
+                return Ok(new { Success = true, Count = pages.Count, WelcomePages = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving welcome pages", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve a single welcome page by ID
+        /// </summary>
+        [HttpGet("welcome-pages/{id}")]
+        public async Task<IActionResult> GetWelcomePage(int id)
+        {
+            try
+            {
+                var page = await _dbContext.WelcomePages.FindAsync(id);
+                if (page == null)
+                    return NotFound(new { Success = false, Message = "Welcome page not found." });
+
+                return Ok(new { Success = true, WelcomePage = new { page.Id, page.Name, page.Title, page.Subtitle } });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving welcome page", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to save a welcome page (create or update)
+        /// </summary>
+        [HttpPost("welcome-pages")]
+        public async Task<IActionResult> SaveWelcomePage([FromBody] SaveWelcomePageRequest? request)
+        {
+            try
+            {
+                if (request == null)
+                    return BadRequest(new { Success = false, Message = "Request body is null." });
+
+                if (string.IsNullOrWhiteSpace(request.Name))
+                    return BadRequest(new { Success = false, Message = "Welcome page name is required." });
+
+                WelcomePage? page;
+                if (request.Id.HasValue)
+                {
+                    page = await _dbContext.WelcomePages.FindAsync(request.Id.Value);
+                    if (page == null)
+                        return NotFound(new { Success = false, Message = "Welcome page not found." });
+
+                    page.Name = request.Name;
+                    page.Title = request.Title ?? "";
+                    page.Subtitle = request.Subtitle ?? "";
+                    _dbContext.WelcomePages.Update(page);
+                }
+                else
+                {
+                    page = new WelcomePage
+                    {
+                        Name = request.Name,
+                        Title = request.Title ?? "",
+                        Subtitle = request.Subtitle ?? "",
+                    };
+                    _dbContext.WelcomePages.Add(page);
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Welcome page saved.", WelcomePageId = page.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error saving welcome page", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// DELETE endpoint to delete a welcome page
+        /// </summary>
+        [HttpDelete("welcome-pages/{id}")]
+        public async Task<IActionResult> DeleteWelcomePage(int id)
+        {
+            try
+            {
+                var page = await _dbContext.WelcomePages.FindAsync(id);
+                if (page == null)
+                    return NotFound(new { Success = false, Message = "Welcome page not found." });
+
+                _dbContext.WelcomePages.Remove(page);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Welcome page deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error deleting welcome page", Error = ex.Message });
+            }
+        }
+
+        // ==================== Event Endpoints ====================
+
+        /// <summary>
+        /// GET endpoint to retrieve all events
+        /// </summary>
+        [HttpGet("events")]
+        public async Task<IActionResult> GetEvents()
+        {
+            try
+            {
+                var events = await _dbContext.Events.ToListAsync();
+                var result = events.Select(e => new
+                {
+                    e.Id,
+                    e.Name,
+                    e.Creator,
+                    e.WelcomePageId,
+                    e.BingoBoardId,
+                    GameNames = string.IsNullOrEmpty(e.GameNames)
+                        ? new List<string>()
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(e.GameNames)
+                }).ToList();
+                return Ok(new { Success = true, Count = events.Count, Events = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving events", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve a single event by ID
+        /// </summary>
+        [HttpGet("events/{id}")]
+        public async Task<IActionResult> GetEvent(int id)
+        {
+            try
+            {
+                var evt = await _dbContext.Events.FindAsync(id);
+                if (evt == null)
+                    return NotFound(new { Success = false, Message = "Event not found." });
+
+                return Ok(new
+                {
+                    Success = true,
+                    Event = new
+                    {
+                        evt.Id,
+                        evt.Name,
+                        evt.Creator,
+                        evt.WelcomePageId,
+                        evt.BingoBoardId,
+                        GameNames = string.IsNullOrEmpty(evt.GameNames)
+                            ? new List<string>()
+                            : System.Text.Json.JsonSerializer.Deserialize<List<string>>(evt.GameNames)
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving event", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to save an event (create or update)
+        /// </summary>
+        [HttpPost("events")]
+        public async Task<IActionResult> SaveEvent([FromBody] SaveEventRequest? request)
+        {
+            try
+            {
+                if (request == null)
+                    return BadRequest(new { Success = false, Message = "Request body is null." });
+
+                if (string.IsNullOrWhiteSpace(request.Name))
+                    return BadRequest(new { Success = false, Message = "Event name is required." });
+
+                var gameNamesJson = request.GameNames != null
+                    ? System.Text.Json.JsonSerializer.Serialize(request.GameNames)
+                    : "[]";
+
+                Event evt;
+                if (request.Id.HasValue)
+                {
+                    evt = await _dbContext.Events.FindAsync(request.Id.Value);
+                    if (evt == null)
+                        return NotFound(new { Success = false, Message = "Event not found." });
+
+                    evt.Name = request.Name;
+                    evt.Creator = request.Creator ?? "";
+                    evt.WelcomePageId = request.WelcomePageId;
+                    evt.BingoBoardId = request.BingoBoardId;
+                    evt.GameNames = gameNamesJson;
+                    _dbContext.Events.Update(evt);
+                }
+                else
+                {
+                    evt = new Event
+                    {
+                        Name = request.Name,
+                        Creator = request.Creator ?? "",
+                        WelcomePageId = request.WelcomePageId,
+                        BingoBoardId = request.BingoBoardId,
+                        GameNames = gameNamesJson,
+                    };
+                    _dbContext.Events.Add(evt);
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Event saved.", EventId = evt.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error saving event", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// DELETE endpoint to delete an event
+        /// </summary>
+        [HttpDelete("events/{id}")]
+        public async Task<IActionResult> DeleteEvent(int id)
+        {
+            try
+            {
+                var evt = await _dbContext.Events.FindAsync(id);
+                if (evt == null)
+                    return NotFound(new { Success = false, Message = "Event not found." });
+
+                _dbContext.Events.Remove(evt);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Event deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error deleting event", Error = ex.Message });
+            }
+        }
     }
 
     public static class BingoBoardState
@@ -428,5 +686,23 @@ namespace BingoEvent.API.Controllers
     {
         public string? Name { get; set; }
         public List<string>? Boxes { get; set; }
+    }
+
+    public class SaveWelcomePageRequest
+    {
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Title { get; set; }
+        public string? Subtitle { get; set; }
+    }
+
+    public class SaveEventRequest
+    {
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Creator { get; set; }
+        public int WelcomePageId { get; set; }
+        public int BingoBoardId { get; set; }
+        public List<string>? GameNames { get; set; }
     }
 }

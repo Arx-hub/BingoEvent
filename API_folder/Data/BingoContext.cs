@@ -20,7 +20,7 @@ namespace BingoEvent.API.Data
 
             // Seed initial data
             modelBuilder.Entity<WelcomePage>().HasData(
-                new WelcomePage { Id = 1, Name = "Default Welcome Page" }
+                new WelcomePage { Id = 1, Name = "Default Welcome Page", Title = "Welcome!", Subtitle = "" }
             );
 
             modelBuilder.Entity<Game>().HasData(
@@ -32,19 +32,19 @@ namespace BingoEvent.API.Data
     public class Event
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-        public string Creator { get; set; }
+        public string Name { get; set; } = "";
+        public string Creator { get; set; } = "";
         public int WelcomePageId { get; set; }
-        public WelcomePage WelcomePage { get; set; }
         public int BingoBoardId { get; set; }
-        public BingoBoard BingoBoard { get; set; }
-        public List<Game> Games { get; set; } = new();
+        public string GameNames { get; set; } = "[]";
     }
 
     public class WelcomePage
     {
         public int Id { get; set; }
         public string Name { get; set; }
+        public string Title { get; set; } = "";
+        public string Subtitle { get; set; } = "";
     }
 
     public class BingoBoard

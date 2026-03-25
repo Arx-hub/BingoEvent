@@ -47,7 +47,9 @@ public static class DatabaseInitializer
             cmd.CommandText = @"
                 CREATE TABLE IF NOT EXISTS WelcomePages (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Name TEXT
+                    Name TEXT,
+                    Title TEXT NOT NULL DEFAULT '',
+                    Subtitle TEXT NOT NULL DEFAULT ''
                 );";
             cmd.ExecuteNonQuery();
         }
@@ -73,11 +75,15 @@ public static class DatabaseInitializer
                     Creator TEXT NOT NULL DEFAULT '',
                     WelcomePageId INTEGER NOT NULL,
                     BingoBoardId INTEGER NOT NULL,
+                    GameNames TEXT NOT NULL DEFAULT '[]',
                     FOREIGN KEY(WelcomePageId) REFERENCES WelcomePages(Id),
                     FOREIGN KEY(BingoBoardId) REFERENCES BingoBoards(Id)
                 );";
             cmd.ExecuteNonQuery();
         }
+
+        // Add missing columns to Events if they don't exist (for existing DBs)
+        AddColumnIfNotExists(connection, "Events", "GameNames", "TEXT NOT NULL DEFAULT '[]'");
 
         // Add missing columns to BingoBoards if they don't exist (for existing DBs)
         // Note: ALTER TABLE ADD COLUMN only allows constant defaults in SQLite
@@ -86,10 +92,14 @@ public static class DatabaseInitializer
         AddColumnIfNotExists(connection, "BingoBoards", "UpdatedAt", "TEXT NOT NULL DEFAULT '2026-01-01 00:00:00'");
         AddColumnIfNotExists(connection, "BingoBoards", "IsActive", "INTEGER NOT NULL DEFAULT 1");
 
+        // Add missing columns to WelcomePages if they don't exist (for existing DBs)
+        AddColumnIfNotExists(connection, "WelcomePages", "Title", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfNotExists(connection, "WelcomePages", "Subtitle", "TEXT NOT NULL DEFAULT ''");
+
         // Seed default WelcomePage if empty
         using (var cmd = connection.CreateCommand())
         {
-            cmd.CommandText = "INSERT OR IGNORE INTO WelcomePages (Id, Name) VALUES (1, 'Default Welcome Page');";
+            cmd.CommandText = "INSERT OR IGNORE INTO WelcomePages (Id, Name, Title, Subtitle) VALUES (1, 'Default Welcome Page', 'Welcome!', '');";
             cmd.ExecuteNonQuery();
         }
 

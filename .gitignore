@@ -416,9 +416,4 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
-database/BingoEvent.db
-database/BingoEvent.db
-database/BingoEvent.db-shm
-database/BingoEvent.db-wal
-database/BingoEvent.db
-database/BingoEvent.db
+

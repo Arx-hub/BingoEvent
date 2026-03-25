@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using System;
 
 namespace BingoEvent.API.Data
 {
@@ -11,6 +12,7 @@ namespace BingoEvent.API.Data
         public DbSet<WelcomePage> WelcomePages { get; set; }
         public DbSet<BingoBoard> BingoBoards { get; set; }
         public DbSet<Game> Games { get; set; }
+        public DbSet<HelloWorldEntry> HelloWorldEntries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -19,10 +21,6 @@ namespace BingoEvent.API.Data
             // Seed initial data
             modelBuilder.Entity<WelcomePage>().HasData(
                 new WelcomePage { Id = 1, Name = "Default Welcome Page" }
-            );
-
-            modelBuilder.Entity<BingoBoard>().HasData(
-                new BingoBoard { Id = 1, Name = "Default Bingo Board" }
             );
 
             modelBuilder.Entity<Game>().HasData(
@@ -53,11 +51,22 @@ namespace BingoEvent.API.Data
     {
         public int Id { get; set; }
         public string Name { get; set; }
+        public string Boxes { get; set; } = "[]";
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 
     public class Game
     {
         public int Id { get; set; }
         public string Name { get; set; }
+    }
+
+    public class HelloWorldEntry
+    {
+        public int Id { get; set; }
+        public string Message { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 }

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'services/bingo_api_service.dart';
 
 void main() {
   runApp(const AdminApp());
@@ -6,14 +9,22 @@ void main() {
 
 // Bingo Board Model
 class BingoBoard {
-  String id;
+  int? databaseId;  // Database ID from API
+  String id;  // Local ID for new boards
   String name;
   List<String> boxes; // 25 boxes for 5x5 grid
+  DateTime? createdAt;
+  DateTime? updatedAt;
+  bool isActive;
 
   BingoBoard({
+    this.databaseId,
     required this.id,
     required this.name,
     required this.boxes,
+    this.createdAt,
+    this.updatedAt,
+    this.isActive = true,
   });
 
   static BingoBoard empty() {
@@ -24,11 +35,38 @@ class BingoBoard {
     );
   }
 
+  static BingoBoard fromJson(Map<String, dynamic> json) {
+    List<String> boxes = [];
+    if (json['boxes'] is List) {
+      boxes = (json['boxes'] as List).map((e) => e?.toString() ?? '').toList();
+    }
+    while (boxes.length < 25) {
+      boxes.add('');
+    }
+    boxes = boxes.take(25).toList();
+
+    final int? dbId = json['id'] is int ? json['id'] as int : null;
+
+    return BingoBoard(
+      databaseId: dbId,
+      id: (dbId ?? DateTime.now().millisecondsSinceEpoch).toString(),
+      name: (json['name'] ?? '').toString(),
+      boxes: boxes,
+      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
+      updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'].toString()) : null,
+      isActive: json['isActive'] == true,
+    );
+  }
+
   BingoBoard copy() {
     return BingoBoard(
+      databaseId: databaseId,
       id: id,
       name: name,
-      boxes: List.from(boxes),
+      boxes: List<String>.from(boxes),
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      isActive: isActive,
     );
   }
 }
@@ -280,11 +318,80 @@ class BingoBoardsTab extends StatefulWidget {
 
 class _BingoBoardsTabState extends State<BingoBoardsTab> {
   List<BingoBoard> savedBoards = [];
+  bool isLoading = false;
+  String? errorMessage;
 
-  void _deleteBoard(int index) {
+  @override
+  void initState() {
+    super.initState();
+    _loadBoardsFromAPI();
+  }
+
+  Future<void> _loadBoardsFromAPI() async {
     setState(() {
-      savedBoards.removeAt(index);
+      isLoading = true;
+      errorMessage = null;
     });
+
+    try {
+      final boardsData = await BingoBoardAPI.getAllBoards();
+      final boards = boardsData
+          .map((data) => BingoBoard.fromJson(data))
+          .toList();
+      
+      setState(() {
+        savedBoards = boards;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Failed to load boards: $e';
+        isLoading = false;
+      });
+    }
+  }
+
+  void _deleteBoard(int index) async {
+    final board = savedBoards[index];
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Board'),
+        content: Text('Are you sure you want to delete "${board.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              
+              if (board.databaseId != null) {
+                try {
+                  await BingoBoardAPI.deleteBoard(board.databaseId!);
+                  setState(() {
+                    savedBoards.removeAt(index);
+                  });
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error deleting board: $e')),
+                    );
+                  }
+                }
+              } else {
+                setState(() {
+                  savedBoards.removeAt(index);
+                });
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _editBoard(int index) {
@@ -306,6 +413,26 @@ class _BingoBoardsTabState extends State<BingoBoardsTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Error: $errorMessage'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadBoardsFromAPI,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       body: Column(
         children: [
@@ -340,23 +467,35 @@ class _BingoBoardsTabState extends State<BingoBoardsTab> {
           ),
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => NewBingoBoardForm(
-                      onSave: (newBoard) {
-                        setState(() {
-                          savedBoards.add(newBoard);
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ),
-                );
-              },
-              child: const Text('Create New Bingo Board'),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _loadBoardsFromAPI,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh'),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NewBingoBoardForm(
+                          onSave: (newBoard) {
+                            setState(() {
+                              savedBoards.add(newBoard);
+                            });
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create New Board'),
+                ),
+              ],
             ),
           ),
         ],
@@ -383,6 +522,7 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
   late BingoBoard currentBoard;
   late TextEditingController boardNameController;
   late List<TextEditingController> boxControllers;
+  bool isSaving = false;
 
   @override
   void initState() {
@@ -404,20 +544,58 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
     super.dispose();
   }
 
-  void _saveBoard() {
+  Future<void> _saveBoard() async {
+    print('[SaveBoard] Starting save. Name: "${boardNameController.text}", databaseId: ${currentBoard.databaseId}');
+    
     if (boardNameController.text.isEmpty) {
+      print('[SaveBoard] Name is empty, aborting save');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a board name')),
       );
       return;
     }
 
-    currentBoard.name = boardNameController.text;
-    for (int i = 0; i < 25; i++) {
-      currentBoard.boxes[i] = boxControllers[i].text;
-    }
+    setState(() {
+      isSaving = true;
+    });
 
-    widget.onSave(currentBoard);
+    try {
+      currentBoard.name = boardNameController.text;
+      for (int i = 0; i < 25; i++) {
+        currentBoard.boxes[i] = boxControllers[i].text;
+      }
+
+      print('[SaveBoard] Calling API with ${currentBoard.boxes.where((b) => b.isNotEmpty).length} non-empty boxes');
+
+      // Save to API
+      final response = await BingoBoardAPI.saveBoard(
+        name: currentBoard.name,
+        boxes: currentBoard.boxes,
+        id: currentBoard.databaseId,
+      );
+
+      // Update databaseId from API response (needed for edit/delete to work)
+      if (response['boardId'] != null) {
+        currentBoard.databaseId = response['boardId'] as int;
+      }
+
+      if (mounted) {
+        // Show success message BEFORE onSave pops the navigator
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Board saved successfully!')),
+        );
+        widget.onSave(currentBoard);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving board: $e')),
+        );
+        setState(() {
+          isSaving = false;
+        });
+      }
+    }
   }
 
   void _showPreview() {
@@ -444,6 +622,7 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
                 width: 350,
                 child: TextField(
                   controller: boardNameController,
+                  enabled: !isSaving,
                   decoration: const InputDecoration(
                     labelText: 'Board Name',
                     isDense: false,
@@ -476,6 +655,7 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
                         ),
                         child: TextField(
                           controller: boxControllers[index],
+                          enabled: !isSaving,
                           maxLines: null,
                           expands: true,
                           textAlign: TextAlign.center,
@@ -496,14 +676,20 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: _showPreview,
+                    onPressed: isSaving ? null : _showPreview,
                     icon: const Icon(Icons.preview),
                     label: const Text('Preview'),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: _saveBoard,
-                    child: const Text('Save'),
+                    onPressed: isSaving ? null : _saveBoard,
+                    child: isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Save'),
                   ),
                 ],
               ),
@@ -665,44 +851,240 @@ class MiniGamePage extends StatelessWidget {
   }
 }
 
-class FeedbackTab extends StatelessWidget {
+class FeedbackTab extends StatefulWidget {
   const FeedbackTab({super.key});
+
+  @override
+  State<FeedbackTab> createState() => _FeedbackTabState();
+}
+
+class _FeedbackTabState extends State<FeedbackTab> {
+  final String apiUrl = "http://localhost:5000/api/bingo";
+  bool _isLoading = false;
+  String _message = '';
+  bool _isSuccess = false;
+  List<dynamic> _helloWorlds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHelloWorlds();
+  }
+
+  Future<void> _writeHelloWorld() async {
+    setState(() {
+      _isLoading = true;
+      _message = '';
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('$apiUrl/hello-world'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _isSuccess = true;
+          _message =
+              'Success! Entry ID: ${data['entryId']} - Created at: ${data['createdAt']}';
+        });
+        // Reload the hello worlds list
+        await _loadHelloWorlds();
+      } else {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _isSuccess = false;
+          _message = 'Error: ${data['message'] ?? 'Unknown error'}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isSuccess = false;
+        _message =
+            'Error connecting to API: $e\n\nMake sure:\n1. API is running on localhost:5000\n2. Docker containers are started\n3. Check CORS settings if running separately';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadHelloWorlds() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$apiUrl/hello-world'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _helloWorlds = data['entries'] ?? [];
+        });
+      }
+    } catch (e) {
+      // Silently fail for loading
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DropdownButtonFormField<String>(
-              items: const [
-                DropdownMenuItem(value: 'Event 1', child: Text('Event 1')),
-                DropdownMenuItem(value: 'Event 2', child: Text('Event 2')),
-              ],
-              onChanged: (value) {},
-              decoration: const InputDecoration(
-                labelText: 'Select Event',
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Hello World Database Test',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: 5, // Placeholder for feedback count
-                itemBuilder: (context, index) {
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text('Feedback ${index + 1} for the selected event.'),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  border: Border.all(color: Colors.blue),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'API Endpoint: http://localhost:5000/api/bingo/hello-world\n\n'
+                  'POST: Write "Hello World" to database\n'
+                  'GET: Retrieve all entries\n\n'
+                  'Use Postman to verify:\n'
+                  'POST http://localhost:5000/api/bingo/hello-world\n'
+                  'GET http://localhost:5000/api/bingo/hello-world',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _writeHelloWorld,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 32, vertical: 16),
+                  backgroundColor: Colors.green,
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Write Hello World to Database',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 16),
+              if (_message.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _isSuccess ? Colors.green.shade50 : Colors.red.shade50,
+                    border: Border.all(
+                        color:
+                            _isSuccess ? Colors.green : Colors.red),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _message,
+                    style: TextStyle(
+                      color:
+                          _isSuccess ? Colors.green.shade900 : Colors.red.shade900,
+                      fontSize: 14,
                     ),
-                  );
-                },
+                  ),
+                ),
+              const SizedBox(height: 32),
+              const Text(
+                'Database Entries (Last 10)',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              if (_helloWorlds.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'No entries yet. Click the button above to create one!',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _helloWorlds.length,
+                  itemBuilder: (context, index) {
+                    final entry = _helloWorlds[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'ID: ${entry['id']}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  '${index + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Message: ${entry['message']}',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Created: ${entry['createdAt']}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _loadHelloWorlds,
+        tooltip: 'Refresh',
+        child: const Icon(Icons.refresh),
       ),
     );
   }

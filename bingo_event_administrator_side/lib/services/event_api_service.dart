@@ -10,6 +10,7 @@ class EventAPI {
     required int welcomePageId,
     required int bingoBoardId,
     required List<String> gameNames,
+    int? questionPackageId,
     int? id,
   }) async {
     try {
@@ -20,6 +21,7 @@ class EventAPI {
         'welcomePageId': welcomePageId,
         'bingoBoardId': bingoBoardId,
         'gameNames': gameNames,
+        'questionPackageId': questionPackageId,
       };
       if (id != null) {
         bodyMap['id'] = id;

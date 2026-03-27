@@ -528,7 +528,8 @@ namespace BingoEvent.API.Controllers
                     e.BingoBoardId,
                     GameNames = string.IsNullOrEmpty(e.GameNames)
                         ? new List<string>()
-                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(e.GameNames)
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(e.GameNames),
+                    e.QuestionPackageId
                 }).ToList();
                 return Ok(new { Success = true, Count = events.Count, Events = result });
             }
@@ -562,7 +563,8 @@ namespace BingoEvent.API.Controllers
                         evt.BingoBoardId,
                         GameNames = string.IsNullOrEmpty(evt.GameNames)
                             ? new List<string>()
-                            : System.Text.Json.JsonSerializer.Deserialize<List<string>>(evt.GameNames)
+                            : System.Text.Json.JsonSerializer.Deserialize<List<string>>(evt.GameNames),
+                        evt.QuestionPackageId
                     }
                 });
             }
@@ -602,6 +604,7 @@ namespace BingoEvent.API.Controllers
                     evt.WelcomePageId = request.WelcomePageId;
                     evt.BingoBoardId = request.BingoBoardId;
                     evt.GameNames = gameNamesJson;
+                    evt.QuestionPackageId = request.QuestionPackageId;
                     _dbContext.Events.Update(evt);
                 }
                 else
@@ -613,6 +616,7 @@ namespace BingoEvent.API.Controllers
                         WelcomePageId = request.WelcomePageId,
                         BingoBoardId = request.BingoBoardId,
                         GameNames = gameNamesJson,
+                        QuestionPackageId = request.QuestionPackageId,
                     };
                     _dbContext.Events.Add(evt);
                 }
@@ -647,6 +651,248 @@ namespace BingoEvent.API.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { Success = false, Message = "Error deleting event", Error = ex.Message });
+            }
+        }
+
+        // ==================== Question Package Endpoints ====================
+
+        /// <summary>
+        /// GET endpoint to retrieve all question packages with their questions
+        /// </summary>
+        [HttpGet("question-packages")]
+        public async Task<IActionResult> GetQuestionPackages()
+        {
+            try
+            {
+                var packages = await _dbContext.QuestionPackages.ToListAsync();
+                var questions = await _dbContext.Questions.ToListAsync();
+                var result = packages.Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    p.IsDefault,
+                    p.CreatedAt,
+                    p.UpdatedAt,
+                    Questions = questions.Where(q => q.QuestionPackageId == p.Id).Select(q => new
+                    {
+                        q.Id,
+                        q.QuestionText,
+                        q.Answer1,
+                        q.Answer2,
+                        q.Answer3,
+                        q.CorrectAnswer
+                    }).ToList()
+                }).ToList();
+                return Ok(new { Success = true, Count = packages.Count, QuestionPackages = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving question packages", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve a single question package by ID
+        /// </summary>
+        [HttpGet("question-packages/{id}")]
+        public async Task<IActionResult> GetQuestionPackage(int id)
+        {
+            try
+            {
+                var pkg = await _dbContext.QuestionPackages.FindAsync(id);
+                if (pkg == null)
+                    return NotFound(new { Success = false, Message = "Question package not found." });
+
+                var questions = await _dbContext.Questions.Where(q => q.QuestionPackageId == id).ToListAsync();
+                return Ok(new
+                {
+                    Success = true,
+                    QuestionPackage = new
+                    {
+                        pkg.Id,
+                        pkg.Name,
+                        pkg.IsDefault,
+                        pkg.CreatedAt,
+                        pkg.UpdatedAt,
+                        Questions = questions.Select(q => new
+                        {
+                            q.Id,
+                            q.QuestionText,
+                            q.Answer1,
+                            q.Answer2,
+                            q.Answer3,
+                            q.CorrectAnswer
+                        }).ToList()
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving question package", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to save a question package (create or update) with questions
+        /// </summary>
+        [HttpPost("question-packages")]
+        public async Task<IActionResult> SaveQuestionPackage([FromBody] SaveQuestionPackageRequest? request)
+        {
+            try
+            {
+                if (request == null)
+                    return BadRequest(new { Success = false, Message = "Request body is null." });
+
+                if (string.IsNullOrWhiteSpace(request.Name))
+                    return BadRequest(new { Success = false, Message = "Package name is required." });
+
+                // Check for duplicate name (excluding self if editing)
+                var existingWithName = await _dbContext.QuestionPackages
+                    .Where(p => p.Name == request.Name && (!request.Id.HasValue || p.Id != request.Id.Value))
+                    .FirstOrDefaultAsync();
+                if (existingWithName != null)
+                    return BadRequest(new { Success = false, Message = "A question package with this name already exists." });
+
+                if (request.Questions == null || request.Questions.Count < 3)
+                    return BadRequest(new { Success = false, Message = "At least 3 questions are required per package." });
+
+                if (request.Questions.Count > 20)
+                    return BadRequest(new { Success = false, Message = "Maximum 20 questions per package." });
+
+                QuestionPackage pkg;
+                if (request.Id.HasValue)
+                {
+                    pkg = await _dbContext.QuestionPackages.FindAsync(request.Id.Value);
+                    if (pkg == null)
+                        return NotFound(new { Success = false, Message = "Question package not found." });
+
+                    pkg.Name = request.Name;
+                    pkg.UpdatedAt = DateTime.UtcNow;
+                    _dbContext.QuestionPackages.Update(pkg);
+
+                    // Remove old questions
+                    var oldQuestions = _dbContext.Questions.Where(q => q.QuestionPackageId == pkg.Id);
+                    _dbContext.Questions.RemoveRange(oldQuestions);
+                }
+                else
+                {
+                    pkg = new QuestionPackage
+                    {
+                        Name = request.Name,
+                        IsDefault = false,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                    };
+                    _dbContext.QuestionPackages.Add(pkg);
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                // Add new questions
+                if (request.Questions != null)
+                {
+                    foreach (var q in request.Questions)
+                    {
+                        _dbContext.Questions.Add(new Question
+                        {
+                            QuestionPackageId = pkg.Id,
+                            QuestionText = q.QuestionText ?? "",
+                            Answer1 = q.Answer1 ?? "",
+                            Answer2 = q.Answer2 ?? "",
+                            Answer3 = q.Answer3 ?? "",
+                            CorrectAnswer = q.CorrectAnswer,
+                        });
+                    }
+                    await _dbContext.SaveChangesAsync();
+                }
+
+                return Ok(new { Success = true, Message = "Question package saved.", QuestionPackageId = pkg.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error saving question package", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to duplicate a question package
+        /// </summary>
+        [HttpPost("question-packages/{id}/duplicate")]
+        public async Task<IActionResult> DuplicateQuestionPackage(int id)
+        {
+            try
+            {
+                var original = await _dbContext.QuestionPackages.FindAsync(id);
+                if (original == null)
+                    return NotFound(new { Success = false, Message = "Question package not found." });
+
+                // Generate unique name
+                var baseName = original.Name + " (kopio)";
+                var newName = baseName;
+                int counter = 2;
+                while (await _dbContext.QuestionPackages.AnyAsync(p => p.Name == newName))
+                {
+                    newName = $"{baseName} {counter}";
+                    counter++;
+                }
+
+                var newPkg = new QuestionPackage
+                {
+                    Name = newName,
+                    IsDefault = false,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                _dbContext.QuestionPackages.Add(newPkg);
+                await _dbContext.SaveChangesAsync();
+
+                var originalQuestions = await _dbContext.Questions.Where(q => q.QuestionPackageId == id).ToListAsync();
+                foreach (var q in originalQuestions)
+                {
+                    _dbContext.Questions.Add(new Question
+                    {
+                        QuestionPackageId = newPkg.Id,
+                        QuestionText = q.QuestionText,
+                        Answer1 = q.Answer1,
+                        Answer2 = q.Answer2,
+                        Answer3 = q.Answer3,
+                        CorrectAnswer = q.CorrectAnswer,
+                    });
+                }
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Question package duplicated.", QuestionPackageId = newPkg.Id, Name = newPkg.Name });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error duplicating question package", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// DELETE endpoint to delete a question package and its questions
+        /// </summary>
+        [HttpDelete("question-packages/{id}")]
+        public async Task<IActionResult> DeleteQuestionPackage(int id)
+        {
+            try
+            {
+                var pkg = await _dbContext.QuestionPackages.FindAsync(id);
+                if (pkg == null)
+                    return NotFound(new { Success = false, Message = "Question package not found." });
+
+                // Remove all questions in this package
+                var questions = _dbContext.Questions.Where(q => q.QuestionPackageId == id);
+                _dbContext.Questions.RemoveRange(questions);
+
+                _dbContext.QuestionPackages.Remove(pkg);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Question package deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error deleting question package", Error = ex.Message });
             }
         }
     }
@@ -704,5 +950,22 @@ namespace BingoEvent.API.Controllers
         public int WelcomePageId { get; set; }
         public int BingoBoardId { get; set; }
         public List<string>? GameNames { get; set; }
+        public int? QuestionPackageId { get; set; }
+    }
+
+    public class SaveQuestionPackageRequest
+    {
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public List<SaveQuestionRequest>? Questions { get; set; }
+    }
+
+    public class SaveQuestionRequest
+    {
+        public string? QuestionText { get; set; }
+        public string? Answer1 { get; set; }
+        public string? Answer2 { get; set; }
+        public string? Answer3 { get; set; }
+        public int CorrectAnswer { get; set; } = 1;
     }
 }

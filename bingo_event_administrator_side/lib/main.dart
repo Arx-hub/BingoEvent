@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'services/bingo_api_service.dart';
 import 'services/welcome_page_api_service.dart';
 import 'services/event_api_service.dart';
+import 'services/question_package_api_service.dart';
 import 'minigames/games_registry.dart';
 
 void main() {
@@ -95,15 +97,17 @@ class AdminHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5, // Number of tabs
+      length: 6, // Number of tabs
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Dashboard'),
           bottom: const TabBar(
+            isScrollable: true,
             tabs: [
               Tab(text: 'Events'),
               Tab(text: 'Welcome Pages'),
               Tab(text: 'Bingo Boards'),
+              Tab(text: 'Question Packages'),
               Tab(text: 'Mini-Games'),
               Tab(text: 'Feedback'),
             ],
@@ -114,6 +118,7 @@ class AdminHomePage extends StatelessWidget {
             EventsTab(),
             WelcomePageTab(),
             BingoBoardsTab(),
+            QuestionPackagesTab(),
             MiniGamesTab(),
             FeedbackTab(),
           ],
@@ -134,6 +139,7 @@ class _EventsTabState extends State<EventsTab> {
   List<Map<String, dynamic>> events = [];
   List<Map<String, dynamic>> welcomePages = [];
   List<Map<String, dynamic>> bingoBoards = [];
+  List<Map<String, dynamic>> questionPackages = [];
   bool isLoading = false;
   String? errorMessage;
 
@@ -154,11 +160,13 @@ class _EventsTabState extends State<EventsTab> {
         EventAPI.getAllEvents(),
         WelcomePageAPI.getAllWelcomePages(),
         BingoBoardAPI.getAllBoards(),
+        QuestionPackageAPI.getAllQuestionPackages(),
       ]);
       setState(() {
         events = results[0];
         welcomePages = results[1];
         bingoBoards = results[2];
+        questionPackages = results[3];
         isLoading = false;
       });
     } catch (e) {
@@ -177,6 +185,15 @@ class _EventsTabState extends State<EventsTab> {
   String _bingoBoardName(int id) {
     final board = bingoBoards.where((b) => b['id'] == id).firstOrNull;
     return board != null ? (board['name'] ?? 'Unnamed').toString() : 'Unknown (#$id)';
+  }
+
+  String _questionPackageName(int? id) {
+    if (id == null) return 'None';
+    final pkg = questionPackages.where((p) {
+      final pId = p['id'];
+      return pId != null && pId.toString() == id.toString();
+    }).firstOrNull;
+    return pkg != null ? (pkg['name'] ?? 'Unnamed').toString() : 'Unknown (#$id)';
   }
 
   void _deleteEvent(int index) {
@@ -216,10 +233,15 @@ class _EventsTabState extends State<EventsTab> {
     );
   }
 
-  void _previewEvent(int index) {
+  void _previewEvent(int index) async {
+    // Refresh data to get latest question packages before preview
+    await _loadAll();
+    if (!mounted) return;
+
     final evt = events[index];
     final wpId = evt['welcomePageId'] as int? ?? 0;
     final bbId = evt['bingoBoardId'] as int? ?? 0;
+    final qpId = evt['questionPackageId'] as int?;
     final gameNames = evt['gameNames'] is List
         ? List<String>.from((evt['gameNames'] as List).map((e) => e.toString()))
         : <String>[];
@@ -246,6 +268,23 @@ class _EventsTabState extends State<EventsTab> {
         .where((g) => gameNames.contains(g.name))
         .toList();
 
+    // Get question package data if assigned
+    List<Map<String, dynamic>>? eventQuestions;
+    if (qpId != null) {
+      final qpData = questionPackages.where((p) {
+        final pId = p['id'];
+        return pId != null && pId.toString() == qpId.toString();
+      }).firstOrNull;
+      if (qpData != null && qpData['questions'] is List) {
+        eventQuestions = List<Map<String, dynamic>>.from(
+          (qpData['questions'] as List).map((q) => Map<String, dynamic>.from(q)),
+        );
+      }
+      print('Preview: qpId=$qpId, found package=${qpData != null}, questions=${eventQuestions?.length ?? 0}');
+    } else {
+      print('Preview: No question package assigned to this event');
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -255,12 +294,17 @@ class _EventsTabState extends State<EventsTab> {
           boardName: boardName,
           boxes: boxes,
           games: eventGames,
+          questions: eventQuestions,
         ),
       ),
     );
   }
 
-  void _editEvent(int index) {
+  void _editEvent(int index) async {
+    // Refresh data to get latest question packages
+    await _loadAll();
+    if (!mounted) return;
+
     final evt = events[index];
     final gameNames = evt['gameNames'] is List
         ? List<String>.from((evt['gameNames'] as List).map((e) => e.toString()))
@@ -276,8 +320,10 @@ class _EventsTabState extends State<EventsTab> {
           existingWelcomePageId: evt['welcomePageId'] as int?,
           existingBingoBoardId: evt['bingoBoardId'] as int?,
           existingGameNames: gameNames,
+          existingQuestionPackageId: evt['questionPackageId'] as int?,
           welcomePages: welcomePages,
           bingoBoards: bingoBoards,
+          questionPackages: questionPackages,
           onSave: () {
             _loadAll();
             Navigator.pop(context);
@@ -326,6 +372,7 @@ class _EventsTabState extends State<EventsTab> {
                       final gameNames = evt['gameNames'] is List
                           ? (evt['gameNames'] as List).map((e) => e.toString()).toList()
                           : <String>[];
+                      final qpId = evt['questionPackageId'] as int?;
 
                       return Card(
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -338,6 +385,7 @@ class _EventsTabState extends State<EventsTab> {
                               Text('Welcome Page: ${_welcomePageName(wpId)}'),
                               Text('Bingo Board: ${_bingoBoardName(bbId)}'),
                               Text('Mini-Games: ${gameNames.isEmpty ? 'None' : gameNames.join(', ')}'),
+                              Text('Question Package: ${_questionPackageName(qpId)}'),
                             ],
                           ),
                           isThreeLine: true,
@@ -383,6 +431,7 @@ class _EventsTabState extends State<EventsTab> {
                         builder: (context) => EventEditor(
                           welcomePages: welcomePages,
                           bingoBoards: bingoBoards,
+                          questionPackages: questionPackages,
                           onSave: () {
                             _loadAll();
                             Navigator.pop(context);
@@ -410,8 +459,10 @@ class EventEditor extends StatefulWidget {
   final int? existingWelcomePageId;
   final int? existingBingoBoardId;
   final List<String>? existingGameNames;
+  final int? existingQuestionPackageId;
   final List<Map<String, dynamic>> welcomePages;
   final List<Map<String, dynamic>> bingoBoards;
+  final List<Map<String, dynamic>> questionPackages;
   final VoidCallback onSave;
 
   const EventEditor({
@@ -422,8 +473,10 @@ class EventEditor extends StatefulWidget {
     this.existingWelcomePageId,
     this.existingBingoBoardId,
     this.existingGameNames,
+    this.existingQuestionPackageId,
     required this.welcomePages,
     required this.bingoBoards,
+    required this.questionPackages,
     required this.onSave,
   });
 
@@ -436,6 +489,7 @@ class _EventEditorState extends State<EventEditor> {
   late TextEditingController creatorController;
   int? selectedWelcomePageId;
   int? selectedBingoBoardId;
+  int? selectedQuestionPackageId;
   late List<String> selectedGameNames;
   bool isSaving = false;
 
@@ -446,6 +500,7 @@ class _EventEditorState extends State<EventEditor> {
     creatorController = TextEditingController(text: widget.existingCreator ?? '');
     selectedWelcomePageId = widget.existingWelcomePageId;
     selectedBingoBoardId = widget.existingBingoBoardId;
+    selectedQuestionPackageId = widget.existingQuestionPackageId;
     selectedGameNames = List<String>.from(widget.existingGameNames ?? []);
   }
 
@@ -485,6 +540,7 @@ class _EventEditorState extends State<EventEditor> {
         welcomePageId: selectedWelcomePageId!,
         bingoBoardId: selectedBingoBoardId!,
         gameNames: selectedGameNames,
+        questionPackageId: selectedQuestionPackageId,
         id: widget.existingId,
       );
 
@@ -609,6 +665,41 @@ class _EventEditorState extends State<EventEditor> {
                           },
                   );
                 }),
+                const SizedBox(height: 24),
+                // Question Package dropdown
+                DropdownButtonFormField<int?>(
+                  value: widget.questionPackages.any((p) => p['id'] == selectedQuestionPackageId)
+                      ? selectedQuestionPackageId
+                      : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Select Question Package (for trivia challenge)',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('None'),
+                    ),
+                    ...widget.questionPackages.map((pkg) {
+                      final isDefault = pkg['isDefault'] == true;
+                      return DropdownMenuItem<int?>(
+                        value: pkg['id'] as int,
+                        child: Row(
+                          children: [
+                            if (isDefault) const Icon(Icons.star, size: 16, color: Colors.amber),
+                            if (isDefault) const SizedBox(width: 4),
+                            Text((pkg['name'] ?? 'Unnamed').toString()),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: isSaving
+                      ? null
+                      : (value) {
+                          setState(() => selectedQuestionPackageId = value);
+                        },
+                ),
                 const SizedBox(height: 32),
                 ElevatedButton(
                   onPressed: isSaving ? null : _save,
@@ -1576,6 +1667,895 @@ class _BingoBoardPreviewState extends State<BingoBoardPreview> {
   }
 }
 
+// ==================== Question Packages Tab ====================
+
+class QuestionPackagesTab extends StatefulWidget {
+  const QuestionPackagesTab({super.key});
+
+  @override
+  State<QuestionPackagesTab> createState() => _QuestionPackagesTabState();
+}
+
+class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
+  List<Map<String, dynamic>> packages = [];
+  bool isLoading = false;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPackages();
+  }
+
+  Future<void> _loadPackages() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final pkgs = await QuestionPackageAPI.getAllQuestionPackages();
+      setState(() {
+        packages = pkgs;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Failed to load question packages: $e';
+        isLoading = false;
+      });
+    }
+  }
+
+  void _deletePackage(int index) {
+    final pkg = packages[index];
+    final id = pkg['id'] as int?;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Question Package'),
+        content: Text('Are you sure you want to delete "${pkg['name']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              if (id != null) {
+                try {
+                  await QuestionPackageAPI.deleteQuestionPackage(id);
+                  _loadPackages();
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error deleting: $e')),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _duplicatePackage(int index) async {
+    final pkg = packages[index];
+    final id = pkg['id'] as int?;
+    if (id == null) return;
+
+    try {
+      await QuestionPackageAPI.duplicateQuestionPackage(id);
+      _loadPackages();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Package duplicated!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error duplicating: $e')),
+        );
+      }
+    }
+  }
+
+  void _previewPackage(int index) {
+    final pkg = packages[index];
+    final questions = pkg['questions'] is List
+        ? List<Map<String, dynamic>>.from(
+            (pkg['questions'] as List).map((q) => Map<String, dynamic>.from(q)))
+        : <Map<String, dynamic>>[];
+
+    if (questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This package has no questions to preview')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => _QuestionPackagePreviewPage(
+          packageName: (pkg['name'] ?? 'Unnamed').toString(),
+          questions: questions,
+        ),
+      ),
+    );
+  }
+
+  void _editPackage(int index) {
+    final pkg = packages[index];
+    final questions = pkg['questions'] is List
+        ? List<Map<String, dynamic>>.from(
+            (pkg['questions'] as List).map((q) => Map<String, dynamic>.from(q)))
+        : <Map<String, dynamic>>[];
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => QuestionPackageEditor(
+          existingId: pkg['id'] as int?,
+          existingName: (pkg['name'] ?? '').toString(),
+          existingQuestions: questions,
+          existingPackageNames: packages
+              .where((p) => p['id'] != pkg['id'])
+              .map((p) => (p['name'] ?? '').toString())
+              .toList(),
+          onSave: () {
+            _loadPackages();
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Error: $errorMessage'),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: _loadPackages, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: Column(
+        children: [
+          Expanded(
+            child: packages.isEmpty
+                ? const Center(child: Text('No question packages created yet.'))
+                : ListView.builder(
+                    itemCount: packages.length,
+                    itemBuilder: (context, index) {
+                      final pkg = packages[index];
+                      final name = (pkg['name'] ?? 'Unnamed').toString();
+                      final isDefault = pkg['isDefault'] == true;
+                      final questionCount = pkg['questions'] is List
+                          ? (pkg['questions'] as List).length
+                          : 0;
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        child: ListTile(
+                          leading: isDefault
+                              ? const Icon(Icons.star, color: Colors.amber, size: 28)
+                              : const Icon(Icons.quiz, color: Colors.blue, size: 28),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                              if (isDefault)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text('Default',
+                                      style: TextStyle(fontSize: 11, color: Colors.amber)),
+                                ),
+                            ],
+                          ),
+                          subtitle: Text('$questionCount question${questionCount != 1 ? 's' : ''}'),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.preview, color: Colors.green),
+                                tooltip: 'Preview',
+                                onPressed: () => _previewPackage(index),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.copy, color: Colors.orange),
+                                tooltip: 'Duplicate',
+                                onPressed: () => _duplicatePackage(index),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.blue),
+                                tooltip: 'Edit',
+                                onPressed: () => _editPackage(index),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                tooltip: 'Delete',
+                                onPressed: () => _deletePackage(index),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _loadPackages,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh'),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => QuestionPackageEditor(
+                          existingPackageNames: packages
+                              .map((p) => (p['name'] ?? '').toString())
+                              .toList(),
+                          onSave: () {
+                            _loadPackages();
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create New Package'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== Question Package Editor ====================
+
+class QuestionPackageEditor extends StatefulWidget {
+  final int? existingId;
+  final String? existingName;
+  final List<Map<String, dynamic>>? existingQuestions;
+  final List<String> existingPackageNames;
+  final VoidCallback onSave;
+
+  const QuestionPackageEditor({
+    super.key,
+    this.existingId,
+    this.existingName,
+    this.existingQuestions,
+    required this.existingPackageNames,
+    required this.onSave,
+  });
+
+  @override
+  State<QuestionPackageEditor> createState() => _QuestionPackageEditorState();
+}
+
+class _QuestionPackageEditorState extends State<QuestionPackageEditor> {
+  late TextEditingController nameController;
+  late List<_QuestionData> questions;
+  bool isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(text: widget.existingName ?? '');
+
+    if (widget.existingQuestions != null && widget.existingQuestions!.isNotEmpty) {
+      questions = widget.existingQuestions!.map((q) {
+        return _QuestionData(
+          questionController: TextEditingController(text: (q['questionText'] ?? '').toString()),
+          answer1Controller: TextEditingController(text: (q['answer1'] ?? '').toString()),
+          answer2Controller: TextEditingController(text: (q['answer2'] ?? '').toString()),
+          answer3Controller: TextEditingController(text: (q['answer3'] ?? '').toString()),
+          correctAnswer: (q['correctAnswer'] is int ? q['correctAnswer'] as int : 1),
+        );
+      }).toList();
+    } else {
+      questions = [_QuestionData.empty()];
+    }
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    for (final q in questions) {
+      q.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addQuestion() {
+    if (questions.length >= 20) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maximum 20 questions per package')),
+      );
+      return;
+    }
+    setState(() {
+      questions.add(_QuestionData.empty());
+    });
+  }
+
+  void _removeQuestion(int index) {
+    if (questions.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Must have at least one question')),
+      );
+      return;
+    }
+    setState(() {
+      questions[index].dispose();
+      questions.removeAt(index);
+    });
+  }
+
+  Future<void> _save() async {
+    final name = nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a package name')),
+      );
+      return;
+    }
+
+    // Check duplicate name
+    if (widget.existingPackageNames.contains(name)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A package with this name already exists')),
+      );
+      return;
+    }
+
+    // Validate minimum question count
+    if (questions.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('At least 3 questions are required')),
+      );
+      return;
+    }
+
+    // Validate questions
+    for (int i = 0; i < questions.length; i++) {
+      final q = questions[i];
+      if (q.questionController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Question ${i + 1} text is empty')),
+        );
+        return;
+      }
+      if (q.answer1Controller.text.trim().isEmpty ||
+          q.answer2Controller.text.trim().isEmpty ||
+          q.answer3Controller.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('All answers for question ${i + 1} are required')),
+        );
+        return;
+      }
+    }
+
+    setState(() => isSaving = true);
+
+    try {
+      final questionsList = questions.map((q) => {
+        'questionText': q.questionController.text.trim(),
+        'answer1': q.answer1Controller.text.trim(),
+        'answer2': q.answer2Controller.text.trim(),
+        'answer3': q.answer3Controller.text.trim(),
+        'correctAnswer': q.correctAnswer,
+      }).toList();
+
+      await QuestionPackageAPI.saveQuestionPackage(
+        name: name,
+        questions: questionsList,
+        id: widget.existingId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Question package saved!')),
+        );
+        widget.onSave();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving: $e')),
+        );
+        setState(() => isSaving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.existingId == null ? 'Create Question Package' : 'Edit Question Package'),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: SizedBox(
+            width: 600,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: nameController,
+                  enabled: !isSaving,
+                  decoration: const InputDecoration(
+                    labelText: 'Package Name',
+                    hintText: 'e.g., ICT Trivia',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Questions (${questions.length}/20) — minimum 3 required',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                ...List.generate(questions.length, (index) {
+                  final q = questions[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Question ${index + 1}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                tooltip: 'Remove question',
+                                onPressed: isSaving ? null : () => _removeQuestion(index),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: q.questionController,
+                            enabled: !isSaving,
+                            decoration: const InputDecoration(
+                              labelText: 'Question',
+                              hintText: 'Enter the question',
+                              border: OutlineInputBorder(),
+                            ),
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: q.answer1Controller,
+                            enabled: !isSaving,
+                            decoration: InputDecoration(
+                              labelText: 'Answer 1',
+                              border: const OutlineInputBorder(),
+                              suffixIcon: Radio<int>(
+                                value: 1,
+                                groupValue: q.correctAnswer,
+                                onChanged: isSaving
+                                    ? null
+                                    : (val) {
+                                        setState(() => q.correctAnswer = val!);
+                                      },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: q.answer2Controller,
+                            enabled: !isSaving,
+                            decoration: InputDecoration(
+                              labelText: 'Answer 2',
+                              border: const OutlineInputBorder(),
+                              suffixIcon: Radio<int>(
+                                value: 2,
+                                groupValue: q.correctAnswer,
+                                onChanged: isSaving
+                                    ? null
+                                    : (val) {
+                                        setState(() => q.correctAnswer = val!);
+                                      },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: q.answer3Controller,
+                            enabled: !isSaving,
+                            decoration: InputDecoration(
+                              labelText: 'Answer 3',
+                              border: const OutlineInputBorder(),
+                              suffixIcon: Radio<int>(
+                                value: 3,
+                                groupValue: q.correctAnswer,
+                                onChanged: isSaving
+                                    ? null
+                                    : (val) {
+                                        setState(() => q.correctAnswer = val!);
+                                      },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Correct answer: ${q.correctAnswer == 1 ? "Answer 1" : q.correctAnswer == 2 ? "Answer 2" : "Answer 3"}',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green.shade700,
+                                fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: isSaving ? null : _addQuestion,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Question'),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: isSaving ? null : _save,
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Save Package'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuestionData {
+  TextEditingController questionController;
+  TextEditingController answer1Controller;
+  TextEditingController answer2Controller;
+  TextEditingController answer3Controller;
+  int correctAnswer;
+
+  _QuestionData({
+    required this.questionController,
+    required this.answer1Controller,
+    required this.answer2Controller,
+    required this.answer3Controller,
+    this.correctAnswer = 1,
+  });
+
+  static _QuestionData empty() {
+    return _QuestionData(
+      questionController: TextEditingController(),
+      answer1Controller: TextEditingController(),
+      answer2Controller: TextEditingController(),
+      answer3Controller: TextEditingController(),
+      correctAnswer: 1,
+    );
+  }
+
+  void dispose() {
+    questionController.dispose();
+    answer1Controller.dispose();
+    answer2Controller.dispose();
+    answer3Controller.dispose();
+  }
+}
+
+// ==================== Question Package Preview ====================
+
+class _QuestionPackagePreviewPage extends StatefulWidget {
+  final String packageName;
+  final List<Map<String, dynamic>> questions;
+
+  const _QuestionPackagePreviewPage({
+    required this.packageName,
+    required this.questions,
+  });
+
+  @override
+  State<_QuestionPackagePreviewPage> createState() =>
+      _QuestionPackagePreviewPageState();
+}
+
+class _QuestionPackagePreviewPageState
+    extends State<_QuestionPackagePreviewPage> {
+  int _currentQuestion = 0;
+  int? _selectedAnswer;
+  bool _answered = false;
+  int _correctCount = 0;
+  bool _finished = false;
+
+  Map<String, dynamic> get _question => widget.questions[_currentQuestion];
+
+  void _submitAnswer() {
+    if (_selectedAnswer == null) return;
+    final correctAnswer =
+        _question['correctAnswer'] is int ? _question['correctAnswer'] as int : 1;
+    setState(() {
+      _answered = true;
+      if (_selectedAnswer == correctAnswer) _correctCount++;
+    });
+  }
+
+  void _nextQuestion() {
+    if (!_answered) return;
+    if (_currentQuestion + 1 >= widget.questions.length) {
+      setState(() => _finished = true);
+      return;
+    }
+    setState(() {
+      _currentQuestion++;
+      _selectedAnswer = null;
+      _answered = false;
+    });
+  }
+
+  void _restart() {
+    setState(() {
+      _currentQuestion = 0;
+      _selectedAnswer = null;
+      _answered = false;
+      _correctCount = 0;
+      _finished = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_finished) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Preview: ${widget.packageName}')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                _correctCount == widget.questions.length
+                    ? Icons.celebration
+                    : Icons.info_outline,
+                size: 64,
+                color: _correctCount == widget.questions.length
+                    ? Colors.green
+                    : Colors.orange,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Results: $_correctCount / ${widget.questions.length} correct',
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _restart,
+                    icon: const Icon(Icons.replay),
+                    label: const Text('Try Again'),
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Back to List'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final questionText = (_question['questionText'] ?? '').toString();
+    final answer1 = (_question['answer1'] ?? '').toString();
+    final answer2 = (_question['answer2'] ?? '').toString();
+    final answer3 = (_question['answer3'] ?? '').toString();
+    final correctAnswer =
+        _question['correctAnswer'] is int ? _question['correctAnswer'] as int : 1;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Preview: ${widget.packageName}'),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: SizedBox(
+            width: 500,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LinearProgressIndicator(
+                  value: (_currentQuestion + 1) / widget.questions.length,
+                  backgroundColor: Colors.grey.shade200,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Question ${_currentQuestion + 1} of ${widget.questions.length}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  elevation: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      questionText,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildAnswerOption(1, answer1, correctAnswer),
+                const SizedBox(height: 8),
+                _buildAnswerOption(2, answer2, correctAnswer),
+                const SizedBox(height: 8),
+                _buildAnswerOption(3, answer3, correctAnswer),
+                const SizedBox(height: 24),
+                if (!_answered)
+                  ElevatedButton(
+                    onPressed: _selectedAnswer != null ? _submitAnswer : null,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Submit Answer',
+                        style: TextStyle(fontSize: 16)),
+                  )
+                else
+                  ElevatedButton(
+                    onPressed: _nextQuestion,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: _selectedAnswer == correctAnswer
+                          ? Colors.green
+                          : Colors.red,
+                    ),
+                    child: Text(
+                      _selectedAnswer == correctAnswer
+                          ? (_currentQuestion + 1 >= widget.questions.length
+                              ? 'See Results'
+                              : 'Next Question')
+                          : (_currentQuestion + 1 >= widget.questions.length
+                              ? 'See Results'
+                              : 'Next Question'),
+                      style: const TextStyle(fontSize: 16, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnswerOption(
+      int answerNum, String answerText, int correctAnswer) {
+    final isSelected = _selectedAnswer == answerNum;
+    final isCorrect = answerNum == correctAnswer;
+
+    Color? backgroundColor;
+    Color? borderColor;
+    if (_answered) {
+      if (isCorrect) {
+        backgroundColor = Colors.green.shade100;
+        borderColor = Colors.green;
+      } else if (isSelected && !isCorrect) {
+        backgroundColor = Colors.red.shade100;
+        borderColor = Colors.red;
+      }
+    } else if (isSelected) {
+      backgroundColor = Colors.blue.shade50;
+      borderColor = Colors.blue;
+    }
+
+    return GestureDetector(
+      onTap: _answered
+          ? null
+          : () {
+              setState(() => _selectedAnswer = answerNum);
+            },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: backgroundColor ?? Colors.white,
+          border: Border.all(
+            color: borderColor ?? Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected
+                    ? (borderColor ?? Colors.blue)
+                    : Colors.grey.shade200,
+              ),
+              child: Center(
+                child: Text(
+                  '$answerNum',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : Colors.black54,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(answerText, style: const TextStyle(fontSize: 16)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class MiniGamesTab extends StatelessWidget {
   const MiniGamesTab({super.key});
 
@@ -1905,6 +2885,7 @@ class EventPreviewWelcome extends StatelessWidget {
   final String boardName;
   final List<String> boxes;
   final List<GameConfig> games;
+  final List<Map<String, dynamic>>? questions;
 
   const EventPreviewWelcome({
     super.key,
@@ -1913,6 +2894,7 @@ class EventPreviewWelcome extends StatelessWidget {
     required this.boardName,
     required this.boxes,
     required this.games,
+    this.questions,
   });
 
   @override
@@ -1978,6 +2960,7 @@ class EventPreviewWelcome extends StatelessWidget {
                         boardName: boardName,
                         boxes: boxes,
                         games: games,
+                        questions: questions,
                       ),
                     ),
                   );
@@ -2009,12 +2992,14 @@ class EventPreviewBingoBoard extends StatefulWidget {
   final String boardName;
   final List<String> boxes;
   final List<GameConfig> games;
+  final List<Map<String, dynamic>>? questions;
 
   const EventPreviewBingoBoard({
     super.key,
     required this.boardName,
     required this.boxes,
     required this.games,
+    this.questions,
   });
 
   @override
@@ -2024,6 +3009,7 @@ class EventPreviewBingoBoard extends StatefulWidget {
 class _EventPreviewBingoBoardState extends State<EventPreviewBingoBoard> {
   late List<bool> checkedBoxes;
   int checkedCount = 0;
+  final _random = Random();
 
   @override
   void initState() {
@@ -2078,7 +3064,10 @@ class _EventPreviewBingoBoardState extends State<EventPreviewBingoBoard> {
 
     final shuffled = List<GameConfig>.from(widget.games)..shuffle();
     final game = shuffled.first;
+    _showSpecificMiniGame(game);
+  }
 
+  void _showSpecificMiniGame(GameConfig game) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2137,8 +3126,9 @@ class _EventPreviewBingoBoardState extends State<EventPreviewBingoBoard> {
         title: const Text('Select a box to mark'),
         content: SizedBox(
           width: double.maxFinite,
-          height: 300,
           child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 5,
               crossAxisSpacing: 6.0,
@@ -2180,6 +3170,28 @@ class _EventPreviewBingoBoardState extends State<EventPreviewBingoBoard> {
     );
   }
 
+  void _showTriviaChallenge() {
+    final allQuestions = List<Map<String, dynamic>>.from(widget.questions!);
+    allQuestions.shuffle(_random);
+    final selectedQuestions = allQuestions.take(3).toList();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => _PreviewTriviaChallengePage(
+          questions: selectedQuestions,
+          onWin: () {
+            Navigator.pop(context);
+            _showMinigameWinScreen();
+          },
+          onLose: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
+
   void _onBoxTap(int index) {
     if (checkedBoxes[index]) return;
 
@@ -2188,9 +3200,29 @@ class _EventPreviewBingoBoardState extends State<EventPreviewBingoBoard> {
       checkedCount++;
     });
 
-    // Every 3 boxes, trigger a minigame (if games are configured)
-    if (widget.games.isNotEmpty && checkedCount % 3 == 0) {
-      _showMiniGame();
+    // Every 3 boxes, trigger a random challenge (trivia counts as one option alongside minigames)
+    if (checkedCount % 3 == 0) {
+      final hasQuestions = widget.questions != null && widget.questions!.length >= 3;
+      final hasGames = widget.games.isNotEmpty;
+
+      if (hasQuestions || hasGames) {
+        // Build a pool of options: each minigame is one entry, trivia is one entry
+        final List<String> options = [];
+        if (hasQuestions) options.add('trivia');
+        for (final game in widget.games) {
+          options.add('game:${game.name}');
+        }
+        options.shuffle(_random);
+        final picked = options.first;
+
+        if (picked == 'trivia') {
+          _showTriviaChallenge();
+        } else {
+          final gameName = picked.substring(5); // remove 'game:' prefix
+          final game = widget.games.firstWhere((g) => g.name == gameName);
+          _showSpecificMiniGame(game);
+        }
+      }
     }
 
     _checkWinCondition();
@@ -2221,15 +3253,25 @@ class _EventPreviewBingoBoardState extends State<EventPreviewBingoBoard> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.orange.shade200),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Column(
                   children: [
-                    const Icon(Icons.info_outline, size: 16, color: Colors.orange),
-                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.info_outline, size: 16, color: Colors.orange),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Preview mode — tap boxes to simulate guest play',
+                          style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      'Preview mode — tap boxes to simulate guest play'
-                      '${widget.games.isNotEmpty ? " (minigame every 3 taps)" : ""}',
-                      style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                      'Games: ${widget.games.length} | '
+                      'Questions: ${widget.questions != null ? "${widget.questions!.length}" : "none (no package assigned)"} | '
+                      'Challenge every 3 taps',
+                      style: TextStyle(fontSize: 11, color: Colors.orange.shade600),
                     ),
                   ],
                 ),
@@ -2268,6 +3310,227 @@ class _EventPreviewBingoBoardState extends State<EventPreviewBingoBoard> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- Preview Trivia Challenge Page (admin preview) ---
+class _PreviewTriviaChallengePage extends StatefulWidget {
+  final List<Map<String, dynamic>> questions;
+  final VoidCallback onWin;
+  final VoidCallback onLose;
+
+  const _PreviewTriviaChallengePage({
+    required this.questions,
+    required this.onWin,
+    required this.onLose,
+  });
+
+  @override
+  State<_PreviewTriviaChallengePage> createState() =>
+      _PreviewTriviaChallengePageState();
+}
+
+class _PreviewTriviaChallengePageState
+    extends State<_PreviewTriviaChallengePage> {
+  int _currentQuestion = 0;
+  int? _selectedAnswer;
+  bool _answered = false;
+
+  Map<String, dynamic> get _question => widget.questions[_currentQuestion];
+
+  void _submitAnswer() {
+    if (_selectedAnswer == null) return;
+
+    setState(() {
+      _answered = true;
+    });
+  }
+
+  void _nextQuestion() {
+    if (!_answered) return;
+
+    final correctAnswer =
+        _question['correctAnswer'] is int ? _question['correctAnswer'] as int : 1;
+    final wasCorrect = _selectedAnswer == correctAnswer;
+
+    if (!wasCorrect) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wrong answer! No free pick this time.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      widget.onLose();
+      return;
+    }
+
+    if (_currentQuestion + 1 >= widget.questions.length) {
+      widget.onWin();
+      return;
+    }
+
+    setState(() {
+      _currentQuestion++;
+      _selectedAnswer = null;
+      _answered = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final questionText = (_question['questionText'] ?? '').toString();
+    final answer1 = (_question['answer1'] ?? '').toString();
+    final answer2 = (_question['answer2'] ?? '').toString();
+    final answer3 = (_question['answer3'] ?? '').toString();
+    final correctAnswer =
+        _question['correctAnswer'] is int ? _question['correctAnswer'] as int : 1;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+            'Trivia Preview - Question ${_currentQuestion + 1}/${widget.questions.length}'),
+        automaticallyImplyLeading: false,
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: SizedBox(
+            width: 500,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LinearProgressIndicator(
+                  value: (_currentQuestion + 1) / widget.questions.length,
+                  backgroundColor: Colors.grey.shade200,
+                ),
+                const SizedBox(height: 24),
+                Card(
+                  elevation: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      questionText,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildAnswerOption(1, answer1, correctAnswer),
+                const SizedBox(height: 8),
+                _buildAnswerOption(2, answer2, correctAnswer),
+                const SizedBox(height: 8),
+                _buildAnswerOption(3, answer3, correctAnswer),
+                const SizedBox(height: 24),
+                if (!_answered)
+                  ElevatedButton(
+                    onPressed: _selectedAnswer != null ? _submitAnswer : null,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Submit Answer',
+                        style: TextStyle(fontSize: 16)),
+                  )
+                else
+                  ElevatedButton(
+                    onPressed: _nextQuestion,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: _selectedAnswer == correctAnswer
+                          ? Colors.green
+                          : Colors.red,
+                    ),
+                    child: Text(
+                      _selectedAnswer == correctAnswer
+                          ? (_currentQuestion + 1 >= widget.questions.length
+                              ? 'Finish!'
+                              : 'Next Question')
+                          : 'Back to Board',
+                      style:
+                          const TextStyle(fontSize: 16, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnswerOption(
+      int answerNum, String answerText, int correctAnswer) {
+    final isSelected = _selectedAnswer == answerNum;
+    final isCorrect = answerNum == correctAnswer;
+
+    Color? backgroundColor;
+    Color? borderColor;
+    if (_answered) {
+      if (isCorrect) {
+        backgroundColor = Colors.green.shade100;
+        borderColor = Colors.green;
+      } else if (isSelected && !isCorrect) {
+        backgroundColor = Colors.red.shade100;
+        borderColor = Colors.red;
+      }
+    } else if (isSelected) {
+      backgroundColor = Colors.blue.shade50;
+      borderColor = Colors.blue;
+    }
+
+    return GestureDetector(
+      onTap: _answered
+          ? null
+          : () {
+              setState(() => _selectedAnswer = answerNum);
+            },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: backgroundColor ?? Colors.white,
+          border: Border.all(
+            color: borderColor ?? Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected
+                    ? (borderColor ?? Colors.blue)
+                    : Colors.grey.shade200,
+              ),
+              child: Center(
+                child: Text(
+                  '$answerNum',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : Colors.black54,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                answerText,
+                style: const TextStyle(fontSize: 15),
+              ),
+            ),
+            if (_answered && isCorrect)
+              const Icon(Icons.check_circle, color: Colors.green),
+            if (_answered && isSelected && !isCorrect)
+              const Icon(Icons.cancel, color: Colors.red),
+          ],
         ),
       ),
     );

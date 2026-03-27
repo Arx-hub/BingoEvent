@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
 import 'minigames/games_registry.dart';
 import 'minigames/game_selection_page.dart';
 
@@ -283,7 +284,9 @@ class MinigameWinPage extends StatelessWidget {
 }
 
 class BingoBoardPage extends StatefulWidget {
-  const BingoBoardPage({super.key});
+  final List<Map<String, dynamic>>? questions;
+
+  const BingoBoardPage({super.key, this.questions});
 
   @override
   State<BingoBoardPage> createState() => _BingoBoardPageState();
@@ -293,6 +296,7 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
   final List<List<String>> _board = List.generate(5, (i) => List.generate(5, (j) => 'Box ${i + 1},${j + 1}'));
   final List<List<bool>> _checkedBoxes = List.generate(5, (_) => List.generate(5, (_) => false));
   int _checkedCount = 0;
+  final _random = Random();
 
   void _checkWinCondition() {
     // Check rows
@@ -327,12 +331,65 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
     );
   }
 
-  void _showMiniGame() {
-    final randomGame = GamesRegistry.getRandomGame();
+  void _onThreeBoxesChecked() {
+    // Trivia is treated as one minigame option in the pool
+    final hasQuestions = widget.questions != null && widget.questions!.length >= 3;
+    final games = GamesRegistry.availableGames;
+    final hasGames = games.isNotEmpty;
+
+    if (hasQuestions || hasGames) {
+      // Build a pool: trivia is one entry, each minigame is one entry
+      final List<String> options = [];
+      if (hasQuestions) options.add('trivia');
+      for (final game in games) {
+        options.add('game:${game.name}');
+      }
+      options.shuffle(_random);
+      final picked = options.first;
+
+      if (picked == 'trivia') {
+        _showTriviaChallenge();
+      } else {
+        final gameName = picked.substring(5); // remove 'game:' prefix
+        final game = games.firstWhere((g) => g.name == gameName);
+        _showSpecificMiniGame(game);
+      }
+    }
+  }
+
+  void _showTriviaChallenge() {
+    // Pick 3 random questions
+    final allQuestions = List<Map<String, dynamic>>.from(widget.questions!);
+    allQuestions.shuffle(_random);
+    final selectedQuestions = allQuestions.take(3).toList();
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => randomGame.gamePageBuilder(
+        builder: (context) => TriviaChallengePage(
+          questions: selectedQuestions,
+          onWin: () {
+            Navigator.pop(context);
+            _showMinigameWinScreen();
+          },
+          onLose: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showMiniGame() {
+    final randomGame = GamesRegistry.getRandomGame();
+    _showSpecificMiniGame(randomGame);
+  }
+
+  void _showSpecificMiniGame(GameConfig game) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => game.gamePageBuilder(
           context,
           () {
             // On win: Pop game and show minigame win screen
@@ -370,6 +427,8 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
         content: SizedBox(
           width: double.maxFinite,
           child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 5,
               crossAxisSpacing: 8.0,
@@ -438,7 +497,7 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
                       _checkedBoxes[row][col] = true;
                       _checkedCount++;
                       if (_checkedCount % 3 == 0) {
-                        _showMiniGame();
+                        _onThreeBoxesChecked();
                       }
                       _checkWinCondition();
                     }
@@ -467,4 +526,236 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
   }
 }
 
+// ==================== Trivia Challenge Page ====================
+
+class TriviaChallengePage extends StatefulWidget {
+  final List<Map<String, dynamic>> questions;
+  final VoidCallback onWin;
+  final VoidCallback onLose;
+
+  const TriviaChallengePage({
+    super.key,
+    required this.questions,
+    required this.onWin,
+    required this.onLose,
+  });
+
+  @override
+  State<TriviaChallengePage> createState() => _TriviaChallengePageState();
+}
+
+class _TriviaChallengePageState extends State<TriviaChallengePage> {
+  int _currentQuestion = 0;
+  int? _selectedAnswer;
+  bool _answered = false;
+  int _correctCount = 0;
+
+  Map<String, dynamic> get _question => widget.questions[_currentQuestion];
+
+  void _submitAnswer() {
+    if (_selectedAnswer == null) return;
+
+    final correctAnswer = _question['correctAnswer'] is int
+        ? _question['correctAnswer'] as int
+        : 1;
+
+    setState(() {
+      _answered = true;
+      if (_selectedAnswer == correctAnswer) {
+        _correctCount++;
+      }
+    });
+  }
+
+  void _nextQuestion() {
+    if (!_answered) return;
+
+    final correctAnswer = _question['correctAnswer'] is int
+        ? _question['correctAnswer'] as int
+        : 1;
+    final wasCorrect = _selectedAnswer == correctAnswer;
+
+    if (!wasCorrect) {
+      // Wrong answer - fail immediately
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wrong answer! No free pick this time.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      widget.onLose();
+      return;
+    }
+
+    if (_currentQuestion + 1 >= widget.questions.length) {
+      // All questions answered correctly
+      widget.onWin();
+      return;
+    }
+
+    setState(() {
+      _currentQuestion++;
+      _selectedAnswer = null;
+      _answered = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final questionText = (_question['questionText'] ?? '').toString();
+    final answer1 = (_question['answer1'] ?? '').toString();
+    final answer2 = (_question['answer2'] ?? '').toString();
+    final answer3 = (_question['answer3'] ?? '').toString();
+    final correctAnswer = _question['correctAnswer'] is int
+        ? _question['correctAnswer'] as int
+        : 1;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Trivia - Question ${_currentQuestion + 1}/${widget.questions.length}'),
+        automaticallyImplyLeading: false,
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: SizedBox(
+            width: 500,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Progress indicator
+                LinearProgressIndicator(
+                  value: (_currentQuestion + 1) / widget.questions.length,
+                  backgroundColor: Colors.grey.shade200,
+                ),
+                const SizedBox(height: 24),
+                // Question
+                Card(
+                  elevation: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      questionText,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Answers
+                ...[ 
+                  _buildAnswerOption(1, answer1, correctAnswer),
+                  const SizedBox(height: 8),
+                  _buildAnswerOption(2, answer2, correctAnswer),
+                  const SizedBox(height: 8),
+                  _buildAnswerOption(3, answer3, correctAnswer),
+                ],
+                const SizedBox(height: 24),
+                if (!_answered)
+                  ElevatedButton(
+                    onPressed: _selectedAnswer != null ? _submitAnswer : null,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Submit Answer', style: TextStyle(fontSize: 16)),
+                  )
+                else
+                  ElevatedButton(
+                    onPressed: _nextQuestion,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: _selectedAnswer == correctAnswer
+                          ? Colors.green
+                          : Colors.red,
+                    ),
+                    child: Text(
+                      _selectedAnswer == correctAnswer
+                          ? (_currentQuestion + 1 >= widget.questions.length
+                              ? 'Finish!'
+                              : 'Next Question')
+                          : 'Back to Board',
+                      style: const TextStyle(fontSize: 16, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnswerOption(int answerNum, String answerText, int correctAnswer) {
+    final isSelected = _selectedAnswer == answerNum;
+    final isCorrect = answerNum == correctAnswer;
+
+    Color? backgroundColor;
+    Color? borderColor;
+    if (_answered) {
+      if (isCorrect) {
+        backgroundColor = Colors.green.shade100;
+        borderColor = Colors.green;
+      } else if (isSelected && !isCorrect) {
+        backgroundColor = Colors.red.shade100;
+        borderColor = Colors.red;
+      }
+    } else if (isSelected) {
+      backgroundColor = Colors.blue.shade50;
+      borderColor = Colors.blue;
+    }
+
+    return GestureDetector(
+      onTap: _answered
+          ? null
+          : () {
+              setState(() => _selectedAnswer = answerNum);
+            },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: backgroundColor ?? Colors.white,
+          border: Border.all(
+            color: borderColor ?? Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected
+                    ? (borderColor ?? Colors.blue)
+                    : Colors.grey.shade200,
+              ),
+              child: Center(
+                child: Text(
+                  '$answerNum',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : Colors.black54,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                answerText,
+                style: const TextStyle(fontSize: 15),
+              ),
+            ),
+            if (_answered && isCorrect)
+              const Icon(Icons.check_circle, color: Colors.green),
+            if (_answered && isSelected && !isCorrect)
+              const Icon(Icons.cancel, color: Colors.red),
+          ],
+        ),
+      ),
+    );
+  }
+}
 

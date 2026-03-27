@@ -753,7 +753,10 @@ namespace BingoEvent.API.Controllers
                 if (existingWithName != null)
                     return BadRequest(new { Success = false, Message = "A question package with this name already exists." });
 
-                if (request.Questions != null && request.Questions.Count > 20)
+                if (request.Questions == null || request.Questions.Count < 3)
+                    return BadRequest(new { Success = false, Message = "At least 3 questions are required per package." });
+
+                if (request.Questions.Count > 20)
                     return BadRequest(new { Success = false, Message = "Maximum 20 questions per package." });
 
                 QuestionPackage pkg;

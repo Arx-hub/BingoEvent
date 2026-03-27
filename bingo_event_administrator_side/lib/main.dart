@@ -2046,6 +2046,14 @@ class _QuestionPackageEditorState extends State<QuestionPackageEditor> {
       return;
     }
 
+    // Validate minimum question count
+    if (questions.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('At least 3 questions are required')),
+      );
+      return;
+    }
+
     // Validate questions
     for (int i = 0; i < questions.length; i++) {
       final q = questions[i];
@@ -2123,7 +2131,7 @@ class _QuestionPackageEditorState extends State<QuestionPackageEditor> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Questions (${questions.length}/20)',
+                  'Questions (${questions.length}/20) — minimum 3 required',
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
@@ -3118,8 +3126,9 @@ class _EventPreviewBingoBoardState extends State<EventPreviewBingoBoard> {
         title: const Text('Select a box to mark'),
         content: SizedBox(
           width: double.maxFinite,
-          height: 300,
           child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 5,
               crossAxisSpacing: 6.0,

@@ -427,6 +427,8 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
         content: SizedBox(
           width: double.maxFinite,
           child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 5,
               crossAxisSpacing: 8.0,

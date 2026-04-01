@@ -598,7 +598,7 @@ class _EventEditorState extends State<EventEditor> {
                 const SizedBox(height: 24),
                 // Welcome Page dropdown
                 DropdownButtonFormField<int>(
-                  value: widget.welcomePages.any((p) => p['id'] == selectedWelcomePageId)
+                  initialValue: widget.welcomePages.any((p) => p['id'] == selectedWelcomePageId)
                       ? selectedWelcomePageId
                       : null,
                   decoration: const InputDecoration(
@@ -620,7 +620,7 @@ class _EventEditorState extends State<EventEditor> {
                 const SizedBox(height: 16),
                 // Bingo Board dropdown
                 DropdownButtonFormField<int>(
-                  value: widget.bingoBoards.any((b) => b['id'] == selectedBingoBoardId)
+                  initialValue: widget.bingoBoards.any((b) => b['id'] == selectedBingoBoardId)
                       ? selectedBingoBoardId
                       : null,
                   decoration: const InputDecoration(
@@ -668,7 +668,7 @@ class _EventEditorState extends State<EventEditor> {
                 const SizedBox(height: 24),
                 // Question Package dropdown
                 DropdownButtonFormField<int?>(
-                  value: widget.questionPackages.any((p) => p['id'] == selectedQuestionPackageId)
+                  initialValue: widget.questionPackages.any((p) => p['id'] == selectedQuestionPackageId)
                       ? selectedQuestionPackageId
                       : null,
                   decoration: const InputDecoration(

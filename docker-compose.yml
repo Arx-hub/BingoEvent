@@ -1,9 +1,7 @@
 services:
   # API Service
   bingo-api:
-    build:
-      context: ./API_folder
-      dockerfile: Dockerfile
+    image: bingo_api2:latest
     container_name: bingo_api_container
     ports:
       - "5000:8080"
@@ -13,21 +11,18 @@ services:
     volumes:
       # Bind mount for database persistence - maps local directory to container
       - ./database:/app/Data
-      - ./API_folder/BingoEvent.db:/app/BingoEvent.db
     networks:
       - bingo-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/health | grep -q Healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
   # Guest Side Service
   bingo-guest:
-    build:
-      context: ./bingo_event_guest_side
-      dockerfile: Dockerfile
+    image: bingo_guest2:latest
     container_name: bingo_guest_container
     ports:
       - "8081:80"
@@ -46,9 +41,7 @@ services:
 
   # Administrator Side Service
   bingo-admin:
-    build:
-      context: ./bingo_event_administrator_side
-      dockerfile: Dockerfile
+    image: bingo_admin2:latest
     container_name: bingo_admin_container
     ports:
       - "8082:80"

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
+using BingoEvent.API;
 using BingoEvent.API.Data;
 using Microsoft.Extensions.Configuration;
 using System.IO;
@@ -9,7 +11,11 @@ using System.IO;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.SuppressModelStateInvalidFilter = true;
+    });
 
 // Add CORS to allow requests from Flutter web apps
 builder.Services.AddCors(options =>
@@ -22,16 +28,23 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Load configuration
+// Configure database context
 var configuration = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .Build();
 
-// Register BingoBoardDb for SQLite-based bingo board storage
-builder.Services.AddSingleton(new BingoBoardDb(configuration.GetConnectionString("DefaultConnection")));
+var connectionString = configuration.GetConnectionString("DefaultConnection")
+    ?? "Data Source=./Data/BingoEvent.db";
+
+builder.Services.AddDbContext<BingoContext>(options =>
+    options.UseSqlite(connectionString)
+);
 
 var app = builder.Build();
+
+// Initialize database tables with raw SQLite (no migrations needed)
+DatabaseInitializer.Initialize(connectionString);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -41,8 +54,6 @@ if (app.Environment.IsDevelopment())
 
 // Enable CORS BEFORE other middleware
 app.UseCors("AllowAll");
-
-app.UseHttpsRedirection();
 
 app.UseAuthorization();
 

@@ -2,9 +2,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Cors;
 using BingoEvent.API.Data;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using Microsoft.EntityFrameworkCore;
 
 namespace BingoEvent.API.Controllers
 {
@@ -13,11 +14,11 @@ namespace BingoEvent.API.Controllers
     [EnableCors("AllowAll")]
     public class BingoController : ControllerBase
     {
-        private readonly BingoBoardDb _bingoBoardDb;
+        private readonly BingoContext _dbContext;
 
-        public BingoController(BingoBoardDb bingoBoardDb)
+        public BingoController(BingoContext dbContext)
         {
-            _bingoBoardDb = bingoBoardDb;
+            _dbContext = dbContext;
         }
 
         /// <summary>
@@ -29,278 +30,59 @@ namespace BingoEvent.API.Controllers
             return Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow });
         }
         [HttpPost("issue-board")]
-        public IActionResult IssueBoard([FromBody] IssueBoardRequest request)
+        public IActionResult IssueBoard()
         {
-            try
+            // Generate a 5x5 bingo board with placeholder text
+            var board = new string[5, 5];
+            for (int i = 0; i < 5; i++)
             {
-                // Generate a 5x5 bingo board with provided text or placeholder
-                var board = new string[5, 5];
-                var textContent = request?.TextContent ?? new List<string>();
-                var index = 0;
-
-                for (int i = 0; i < 5; i++)
+                for (int j = 0; j < 5; j++)
                 {
-                    for (int j = 0; j < 5; j++)
-                    {
-                        if (index < textContent.Count)
-                        {
-                            board[i, j] = textContent[index];
-                        }
-                        else
-                        {
-                            board[i, j] = $"Box {i + 1},{j + 1}";
-                        }
-                        index++;
-                    }
+                    board[i, j] = $"Box {i + 1},{j + 1}";
                 }
-
-                // Save the board to database
-                var boardName = request?.BoardName ?? $"Bingo Board {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}";
-                int boardId = _bingoBoardDb.CreateBingoBoard(boardName, board);
-
-                return Ok(new
-                {
-                    Success = true,
-                    Message = "Bingo board created and saved to database successfully.",
-                    BoardId = boardId,
-                    BoardName = boardName,
-                    Board = ConvertBoardTo2DArray(board)
-                });
             }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    Success = false,
-                    Message = "Error creating bingo board",
-                    Error = ex.Message
-                });
-            }
+
+            // Store the board in memory
+            BingoBoardState.Board = board;
+
+            return Ok(new { Message = "Bingo board issued successfully.", Board = board });
         }
 
         [HttpPut("update-text")]
         public IActionResult UpdateText([FromBody] UpdateTextRequest request)
         {
-            try
+            // Validate the request
+            if (request.Row < 0 || request.Row >= 5 || request.Column < 0 || request.Column >= 5)
             {
-                // Validate the request
-                if (request.Row < 0 || request.Row >= 5 || request.Column < 0 || request.Column >= 5)
-                {
-                    return BadRequest(new
-                    {
-                        Success = false,
-                        Message = "Invalid row or column."
-                    });
-                }
-
-                if (request.BoardId <= 0)
-                {
-                    return BadRequest(new
-                    {
-                        Success = false,
-                        Message = "Invalid board ID."
-                    });
-                }
-
-                // Get the board and cells
-                var (board, cells) = _bingoBoardDb.GetBingoBoardById(request.BoardId);
-
-                if (board == null)
-                {
-                    return NotFound(new
-                    {
-                        Success = false,
-                        Message = $"Bingo board with ID {request.BoardId} not found"
-                    });
-                }
-
-                // Find the cell at the specified row and column
-                var cell = cells.FirstOrDefault(c => c.Row == request.Row && c.Column == request.Column);
-
-                if (cell == null)
-                {
-                    return NotFound(new
-                    {
-                        Success = false,
-                        Message = "Cell not found at specified position"
-                    });
-                }
-
-                // Update the cell text in database
-                _bingoBoardDb.UpdateCellText(cell.Id, request.NewText);
-
-                return Ok(new
-                {
-                    Success = true,
-                    Message = "Cell text updated successfully.",
-                    CellId = cell.Id,
-                    Row = request.Row,
-                    Column = request.Column,
-                    NewText = request.NewText
-                });
+                return BadRequest(new { Message = "Invalid row or column." });
             }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    Success = false,
-                    Message = "Error updating cell text",
-                    Error = ex.Message
-                });
-            }
+
+            // Update the text on the board
+            BingoBoardState.Board[request.Row, request.Column] = request.NewText;
+
+            return Ok(new { Message = "Text fields updated successfully.", Board = BingoBoardState.Board });
         }
 
-        [HttpGet("boards")]
-        public IActionResult GetAllBoards()
+        [HttpGet("board")]
+        public IActionResult GetBoard()
         {
-            try
-            {
-                var boards = _bingoBoardDb.GetAllBingoBoards();
-
-                return Ok(new
-                {
-                    Success = true,
-                    Count = boards.Count,
-                    Boards = boards.Select(b => new
-                    {
-                        Id = b.Id,
-                        Name = b.Name,
-                        CreatedAt = b.CreatedAt
-                    }).ToList()
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    Success = false,
-                    Message = "Error retrieving bingo boards",
-                    Error = ex.Message
-                });
-            }
-        }
-
-        [HttpGet("board/{boardId}")]
-        public IActionResult GetBoard(int boardId)
-        {
-            try
-            {
-                var (board, cells) = _bingoBoardDb.GetBingoBoardById(boardId);
-
-                if (board == null)
-                {
-                    return NotFound(new
-                    {
-                        Success = false,
-                        Message = $"Bingo board with ID {boardId} not found"
-                    });
-                }
-
-                // Convert cells to 2D array format
-                var boardArray = new string[5, 5];
-                var markedArray = new bool[5, 5];
-
-                foreach (var cell in cells)
-                {
-                    boardArray[cell.Row, cell.Column] = cell.Text;
-                    markedArray[cell.Row, cell.Column] = cell.IsMarked;
-                }
-
-                return Ok(new
-                {
-                    Success = true,
-                    Board = new
-                    {
-                        Id = board.Id,
-                        Name = board.Name,
-                        CreatedAt = board.CreatedAt,
-                        Content = ConvertBoardTo2DArray(boardArray),
-                        Marked = ConvertBoardTo2DArray(markedArray)
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    Success = false,
-                    Message = "Error retrieving bingo board",
-                    Error = ex.Message
-                });
-            }
+            // Return the current bingo board
+            return Ok(new { Board = BingoBoardState.Board });
         }
 
         [HttpPost("mark-box")]
         public IActionResult MarkBox([FromBody] MarkBoxRequest request)
         {
-            try
+            // Validate the request
+            if (request.Row < 0 || request.Row >= 5 || request.Column < 0 || request.Column >= 5)
             {
-                // Validate the request
-                if (request.Row < 0 || request.Row >= 5 || request.Column < 0 || request.Column >= 5)
-                {
-                    return BadRequest(new
-                    {
-                        Success = false,
-                        Message = "Invalid row or column."
-                    });
-                }
-
-                if (request.BoardId <= 0)
-                {
-                    return BadRequest(new
-                    {
-                        Success = false,
-                        Message = "Invalid board ID."
-                    });
-                }
-
-                // Get the board and cells
-                var (board, cells) = _bingoBoardDb.GetBingoBoardById(request.BoardId);
-
-                if (board == null)
-                {
-                    return NotFound(new
-                    {
-                        Success = false,
-                        Message = $"Bingo board with ID {request.BoardId} not found"
-                    });
-                }
-
-                // Find the cell at the specified row and column
-                var cell = cells.FirstOrDefault(c => c.Row == request.Row && c.Column == request.Column);
-
-                if (cell == null)
-                {
-                    return NotFound(new
-                    {
-                        Success = false,
-                        Message = "Cell not found at specified position"
-                    });
-                }
-
-                // Mark/unmark the box in database
-                bool newMarkedState = !cell.IsMarked; // Toggle marked state
-                _bingoBoardDb.MarkCell(cell.Id, newMarkedState);
-
-                return Ok(new
-                {
-                    Success = true,
-                    Message = "Box marked successfully.",
-                    CellId = cell.Id,
-                    Row = request.Row,
-                    Column = request.Column,
-                    IsMarked = newMarkedState
-                });
+                return BadRequest(new { Message = "Invalid row or column." });
             }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    Success = false,
-                    Message = "Error marking box",
-                    Error = ex.Message
-                });
-            }
+
+            // Mark the box as checked
+            BingoBoardState.Board[request.Row, request.Column] = "Checked";
+
+            return Ok(new { Message = "Box marked successfully.", Board = BingoBoardState.Board });
         }
 
         [HttpPost("mini-game")]
@@ -316,23 +98,802 @@ namespace BingoEvent.API.Controllers
             }
         }
 
+        /// <summary>
+        /// OPTIONS endpoint for CORS preflight requests
+        /// </summary>
+        [HttpOptions("hello-world")]
+        public IActionResult OptionsHelloWorld()
+        {
+            return Ok();
+        }
 
         /// <summary>
-        /// Helper method to convert 2D array to jagged array for JSON serialization
+        /// POST endpoint to write "Hello World" to the database
+        /// Automatically creates the HelloWorldEntries table if it doesn't exist
         /// </summary>
-        private object ConvertBoardTo2DArray<T>(T[,] board)
+        [HttpPost("hello-world")]
+        public async Task<IActionResult> WriteHelloWorld()
         {
-            var result = new List<List<T>>();
-            for (int i = 0; i < board.GetLength(0); i++)
+            try
             {
-                var row = new List<T>();
-                for (int j = 0; j < board.GetLength(1); j++)
+                // Create new Hello World entry
+                var entry = new HelloWorldEntry
                 {
-                    row.Add(board[i, j]);
-                }
-                result.Add(row);
+                    Message = "Hello World",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                // Add to database
+                _dbContext.HelloWorldEntries.Add(entry);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    Success = true,
+                    Message = "Hello World written to database successfully",
+                    EntryId = entry.Id,
+                    CreatedAt = entry.CreatedAt,
+                    Message_Content = entry.Message
+                });
             }
-            return result;
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Success = false,
+                    Message = "Error writing to database",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve all "Hello World" entries from the database
+        /// </summary>
+        [HttpGet("hello-world")]
+        public async Task<IActionResult> GetHelloWorlds()
+        {
+            try
+            {
+                // Get all entries
+                var entries = _dbContext.HelloWorldEntries
+                    .OrderByDescending(e => e.CreatedAt)
+                    .ToList();
+
+                return Ok(new
+                {
+                    Success = true,
+                    Count = entries.Count,
+                    Entries = entries.Select(e => new
+                    {
+                        Id = e.Id,
+                        Message = e.Message,
+                        CreatedAt = e.CreatedAt
+                    }).ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Success = false,
+                    Message = "Error retrieving from database",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to save a bingo board to the database
+        /// </summary>
+        [HttpPost("save-board")]
+        public async Task<IActionResult> SaveBoard([FromBody] SaveBoardRequest? request)
+        {
+            try
+            {
+                Console.WriteLine($"[SaveBoard] Received request. Request is null: {request == null}");
+                
+                if (!ModelState.IsValid)
+                {
+                    var errors = ModelState.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
+                    );
+                    Console.WriteLine($"[SaveBoard] Validation errors: {System.Text.Json.JsonSerializer.Serialize(errors)}");
+                    return BadRequest(new { Success = false, Message = "Validation failed", Errors = errors });
+                }
+
+                if (request == null)
+                    return BadRequest(new { Success = false, Message = "Request body is null." });
+
+                Console.WriteLine($"[SaveBoard] Name: {request.Name}, Id: {request.Id}, Boxes count: {request.Boxes?.Count ?? 0}");
+                
+                if (string.IsNullOrWhiteSpace(request.Name))
+                    return BadRequest(new { Success = false, Message = "Board name is required." });
+
+                var boxesJson = request.Boxes != null
+                    ? System.Text.Json.JsonSerializer.Serialize(request.Boxes)
+                    : "[]";
+
+                BingoBoard board;
+                if (request.Id.HasValue)
+                {
+                    board = await _dbContext.BingoBoards.FindAsync(request.Id.Value);
+                    if (board == null)
+                        return NotFound(new { Success = false, Message = "Board not found." });
+
+                    board.Name = request.Name;
+                    board.Boxes = boxesJson;
+                    board.IsActive = request.IsActive;
+                    board.UpdatedAt = DateTime.UtcNow;
+                    _dbContext.BingoBoards.Update(board);
+                }
+                else
+                {
+                    board = new BingoBoard
+                    {
+                        Name = request.Name,
+                        Boxes = boxesJson,
+                        IsActive = request.IsActive,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _dbContext.BingoBoards.Add(board);
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Board saved.", BoardId = board.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error saving board", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve all bingo boards
+        /// </summary>
+        [HttpGet("boards")]
+        public async Task<IActionResult> GetBoards()
+        {
+            try
+            {
+                var boards = await _dbContext.BingoBoards.ToListAsync();
+                var result = boards.Select(b => new
+                {
+                    b.Id,
+                    b.Name,
+                    Boxes = string.IsNullOrEmpty(b.Boxes)
+                        ? new List<string>()
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(b.Boxes),
+                    b.CreatedAt,
+                    b.UpdatedAt,
+                    b.IsActive
+                }).ToList();
+                return Ok(new { Success = true, Count = boards.Count, Boards = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving boards", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve a single bingo board by ID
+        /// </summary>
+        [HttpGet("boards/{id}")]
+        public async Task<IActionResult> GetBoard(int id)
+        {
+            try
+            {
+                var board = await _dbContext.BingoBoards.FindAsync(id);
+                if (board == null)
+                    return NotFound(new { Success = false, Message = "Board not found." });
+
+                var result = new
+                {
+                    board.Id,
+                    board.Name,
+                    Boxes = string.IsNullOrEmpty(board.Boxes)
+                        ? new List<string>()
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(board.Boxes),
+                    board.CreatedAt,
+                    board.UpdatedAt,
+                    board.IsActive
+                };
+                return Ok(new { Success = true, Board = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving board", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to load a bingo board by ID (used by Flutter admin app)
+        /// </summary>
+        [HttpGet("load-board/{id}")]
+        public async Task<IActionResult> LoadBoard(int id)
+        {
+            try
+            {
+                var board = await _dbContext.BingoBoards.FindAsync(id);
+                if (board == null)
+                    return NotFound(new { Success = false, Message = "Board not found." });
+
+                return Ok(new
+                {
+                    board.Id,
+                    board.Name,
+                    Boxes = string.IsNullOrEmpty(board.Boxes)
+                        ? new List<string>()
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(board.Boxes),
+                    board.CreatedAt,
+                    board.UpdatedAt,
+                    board.IsActive
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error loading board", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// PUT endpoint to update a bingo board
+        /// </summary>
+        [HttpPut("boards/{id}")]
+        public async Task<IActionResult> UpdateBoard(int id, [FromBody] UpdateBoardRequest request)
+        {
+            try
+            {
+                var board = await _dbContext.BingoBoards.FindAsync(id);
+                if (board == null)
+                    return NotFound(new { Success = false, Message = "Board not found." });
+
+                if (!string.IsNullOrWhiteSpace(request.Name))
+                    board.Name = request.Name;
+                if (request.Boxes != null)
+                    board.Boxes = System.Text.Json.JsonSerializer.Serialize(request.Boxes);
+                board.UpdatedAt = DateTime.UtcNow;
+
+                _dbContext.BingoBoards.Update(board);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Board updated successfully.", Board = board });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error updating board", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// DELETE endpoint to delete a bingo board
+        /// </summary>
+        [HttpDelete("boards/{id}")]
+        public async Task<IActionResult> DeleteBoard(int id)
+        {
+            try
+            {
+                var board = await _dbContext.BingoBoards.FindAsync(id);
+                if (board == null)
+                    return NotFound(new { Success = false, Message = "Board not found." });
+
+                _dbContext.BingoBoards.Remove(board);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Board deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error deleting board", Error = ex.Message });
+            }
+        }
+
+        // ==================== Welcome Page Endpoints ====================
+
+        /// <summary>
+        /// GET endpoint to retrieve all welcome pages
+        /// </summary>
+        [HttpGet("welcome-pages")]
+        public async Task<IActionResult> GetWelcomePages()
+        {
+            try
+            {
+                var pages = await _dbContext.WelcomePages.ToListAsync();
+                var result = pages.Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    p.Title,
+                    p.Subtitle
+                }).ToList();
+                return Ok(new { Success = true, Count = pages.Count, WelcomePages = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving welcome pages", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve a single welcome page by ID
+        /// </summary>
+        [HttpGet("welcome-pages/{id}")]
+        public async Task<IActionResult> GetWelcomePage(int id)
+        {
+            try
+            {
+                var page = await _dbContext.WelcomePages.FindAsync(id);
+                if (page == null)
+                    return NotFound(new { Success = false, Message = "Welcome page not found." });
+
+                return Ok(new { Success = true, WelcomePage = new { page.Id, page.Name, page.Title, page.Subtitle } });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving welcome page", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to save a welcome page (create or update)
+        /// </summary>
+        [HttpPost("welcome-pages")]
+        public async Task<IActionResult> SaveWelcomePage([FromBody] SaveWelcomePageRequest? request)
+        {
+            try
+            {
+                if (request == null)
+                    return BadRequest(new { Success = false, Message = "Request body is null." });
+
+                if (string.IsNullOrWhiteSpace(request.Name))
+                    return BadRequest(new { Success = false, Message = "Welcome page name is required." });
+
+                WelcomePage? page;
+                if (request.Id.HasValue)
+                {
+                    page = await _dbContext.WelcomePages.FindAsync(request.Id.Value);
+                    if (page == null)
+                        return NotFound(new { Success = false, Message = "Welcome page not found." });
+
+                    page.Name = request.Name;
+                    page.Title = request.Title ?? "";
+                    page.Subtitle = request.Subtitle ?? "";
+                    _dbContext.WelcomePages.Update(page);
+                }
+                else
+                {
+                    page = new WelcomePage
+                    {
+                        Name = request.Name,
+                        Title = request.Title ?? "",
+                        Subtitle = request.Subtitle ?? "",
+                    };
+                    _dbContext.WelcomePages.Add(page);
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Welcome page saved.", WelcomePageId = page.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error saving welcome page", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// DELETE endpoint to delete a welcome page
+        /// </summary>
+        [HttpDelete("welcome-pages/{id}")]
+        public async Task<IActionResult> DeleteWelcomePage(int id)
+        {
+            try
+            {
+                var page = await _dbContext.WelcomePages.FindAsync(id);
+                if (page == null)
+                    return NotFound(new { Success = false, Message = "Welcome page not found." });
+
+                _dbContext.WelcomePages.Remove(page);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Welcome page deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error deleting welcome page", Error = ex.Message });
+            }
+        }
+
+        // ==================== Event Endpoints ====================
+
+        /// <summary>
+        /// GET endpoint to retrieve all events
+        /// </summary>
+        [HttpGet("events")]
+        public async Task<IActionResult> GetEvents()
+        {
+            try
+            {
+                var events = await _dbContext.Events.ToListAsync();
+                var result = events.Select(e => new
+                {
+                    e.Id,
+                    e.Name,
+                    e.Creator,
+                    e.WelcomePageId,
+                    e.BingoBoardId,
+                    GameNames = string.IsNullOrEmpty(e.GameNames)
+                        ? new List<string>()
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(e.GameNames),
+                    e.QuestionPackageId
+                }).ToList();
+                return Ok(new { Success = true, Count = events.Count, Events = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving events", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve a single event by ID
+        /// </summary>
+        [HttpGet("events/{id}")]
+        public async Task<IActionResult> GetEvent(int id)
+        {
+            try
+            {
+                var evt = await _dbContext.Events.FindAsync(id);
+                if (evt == null)
+                    return NotFound(new { Success = false, Message = "Event not found." });
+
+                return Ok(new
+                {
+                    Success = true,
+                    Event = new
+                    {
+                        evt.Id,
+                        evt.Name,
+                        evt.Creator,
+                        evt.WelcomePageId,
+                        evt.BingoBoardId,
+                        GameNames = string.IsNullOrEmpty(evt.GameNames)
+                            ? new List<string>()
+                            : System.Text.Json.JsonSerializer.Deserialize<List<string>>(evt.GameNames),
+                        evt.QuestionPackageId
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving event", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to save an event (create or update)
+        /// </summary>
+        [HttpPost("events")]
+        public async Task<IActionResult> SaveEvent([FromBody] SaveEventRequest? request)
+        {
+            try
+            {
+                if (request == null)
+                    return BadRequest(new { Success = false, Message = "Request body is null." });
+
+                if (string.IsNullOrWhiteSpace(request.Name))
+                    return BadRequest(new { Success = false, Message = "Event name is required." });
+
+                var gameNamesJson = request.GameNames != null
+                    ? System.Text.Json.JsonSerializer.Serialize(request.GameNames)
+                    : "[]";
+
+                Event evt;
+                if (request.Id.HasValue)
+                {
+                    evt = await _dbContext.Events.FindAsync(request.Id.Value);
+                    if (evt == null)
+                        return NotFound(new { Success = false, Message = "Event not found." });
+
+                    evt.Name = request.Name;
+                    evt.Creator = request.Creator ?? "";
+                    evt.WelcomePageId = request.WelcomePageId;
+                    evt.BingoBoardId = request.BingoBoardId;
+                    evt.GameNames = gameNamesJson;
+                    evt.QuestionPackageId = request.QuestionPackageId;
+                    _dbContext.Events.Update(evt);
+                }
+                else
+                {
+                    evt = new Event
+                    {
+                        Name = request.Name,
+                        Creator = request.Creator ?? "",
+                        WelcomePageId = request.WelcomePageId,
+                        BingoBoardId = request.BingoBoardId,
+                        GameNames = gameNamesJson,
+                        QuestionPackageId = request.QuestionPackageId,
+                    };
+                    _dbContext.Events.Add(evt);
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Event saved.", EventId = evt.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error saving event", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// DELETE endpoint to delete an event
+        /// </summary>
+        [HttpDelete("events/{id}")]
+        public async Task<IActionResult> DeleteEvent(int id)
+        {
+            try
+            {
+                var evt = await _dbContext.Events.FindAsync(id);
+                if (evt == null)
+                    return NotFound(new { Success = false, Message = "Event not found." });
+
+                _dbContext.Events.Remove(evt);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Event deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error deleting event", Error = ex.Message });
+            }
+        }
+
+        // ==================== Question Package Endpoints ====================
+
+        /// <summary>
+        /// GET endpoint to retrieve all question packages with their questions
+        /// </summary>
+        [HttpGet("question-packages")]
+        public async Task<IActionResult> GetQuestionPackages()
+        {
+            try
+            {
+                var packages = await _dbContext.QuestionPackages.ToListAsync();
+                var questions = await _dbContext.Questions.ToListAsync();
+                var result = packages.Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    p.IsDefault,
+                    p.CreatedAt,
+                    p.UpdatedAt,
+                    Questions = questions.Where(q => q.QuestionPackageId == p.Id).Select(q => new
+                    {
+                        q.Id,
+                        q.QuestionText,
+                        q.Answer1,
+                        q.Answer2,
+                        q.Answer3,
+                        q.CorrectAnswer
+                    }).ToList()
+                }).ToList();
+                return Ok(new { Success = true, Count = packages.Count, QuestionPackages = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving question packages", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve a single question package by ID
+        /// </summary>
+        [HttpGet("question-packages/{id}")]
+        public async Task<IActionResult> GetQuestionPackage(int id)
+        {
+            try
+            {
+                var pkg = await _dbContext.QuestionPackages.FindAsync(id);
+                if (pkg == null)
+                    return NotFound(new { Success = false, Message = "Question package not found." });
+
+                var questions = await _dbContext.Questions.Where(q => q.QuestionPackageId == id).ToListAsync();
+                return Ok(new
+                {
+                    Success = true,
+                    QuestionPackage = new
+                    {
+                        pkg.Id,
+                        pkg.Name,
+                        pkg.IsDefault,
+                        pkg.CreatedAt,
+                        pkg.UpdatedAt,
+                        Questions = questions.Select(q => new
+                        {
+                            q.Id,
+                            q.QuestionText,
+                            q.Answer1,
+                            q.Answer2,
+                            q.Answer3,
+                            q.CorrectAnswer
+                        }).ToList()
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving question package", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to save a question package (create or update) with questions
+        /// </summary>
+        [HttpPost("question-packages")]
+        public async Task<IActionResult> SaveQuestionPackage([FromBody] SaveQuestionPackageRequest? request)
+        {
+            try
+            {
+                if (request == null)
+                    return BadRequest(new { Success = false, Message = "Request body is null." });
+
+                if (string.IsNullOrWhiteSpace(request.Name))
+                    return BadRequest(new { Success = false, Message = "Package name is required." });
+
+                // Check for duplicate name (excluding self if editing)
+                var existingWithName = await _dbContext.QuestionPackages
+                    .Where(p => p.Name == request.Name && (!request.Id.HasValue || p.Id != request.Id.Value))
+                    .FirstOrDefaultAsync();
+                if (existingWithName != null)
+                    return BadRequest(new { Success = false, Message = "A question package with this name already exists." });
+
+                if (request.Questions == null || request.Questions.Count < 3)
+                    return BadRequest(new { Success = false, Message = "At least 3 questions are required per package." });
+
+                if (request.Questions.Count > 20)
+                    return BadRequest(new { Success = false, Message = "Maximum 20 questions per package." });
+
+                QuestionPackage pkg;
+                if (request.Id.HasValue)
+                {
+                    pkg = await _dbContext.QuestionPackages.FindAsync(request.Id.Value);
+                    if (pkg == null)
+                        return NotFound(new { Success = false, Message = "Question package not found." });
+
+                    pkg.Name = request.Name;
+                    pkg.UpdatedAt = DateTime.UtcNow;
+                    _dbContext.QuestionPackages.Update(pkg);
+
+                    // Remove old questions
+                    var oldQuestions = _dbContext.Questions.Where(q => q.QuestionPackageId == pkg.Id);
+                    _dbContext.Questions.RemoveRange(oldQuestions);
+                }
+                else
+                {
+                    pkg = new QuestionPackage
+                    {
+                        Name = request.Name,
+                        IsDefault = false,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                    };
+                    _dbContext.QuestionPackages.Add(pkg);
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                // Add new questions
+                if (request.Questions != null)
+                {
+                    foreach (var q in request.Questions)
+                    {
+                        _dbContext.Questions.Add(new Question
+                        {
+                            QuestionPackageId = pkg.Id,
+                            QuestionText = q.QuestionText ?? "",
+                            Answer1 = q.Answer1 ?? "",
+                            Answer2 = q.Answer2 ?? "",
+                            Answer3 = q.Answer3 ?? "",
+                            CorrectAnswer = q.CorrectAnswer,
+                        });
+                    }
+                    await _dbContext.SaveChangesAsync();
+                }
+
+                return Ok(new { Success = true, Message = "Question package saved.", QuestionPackageId = pkg.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error saving question package", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to duplicate a question package
+        /// </summary>
+        [HttpPost("question-packages/{id}/duplicate")]
+        public async Task<IActionResult> DuplicateQuestionPackage(int id)
+        {
+            try
+            {
+                var original = await _dbContext.QuestionPackages.FindAsync(id);
+                if (original == null)
+                    return NotFound(new { Success = false, Message = "Question package not found." });
+
+                // Generate unique name
+                var baseName = original.Name + " (kopio)";
+                var newName = baseName;
+                int counter = 2;
+                while (await _dbContext.QuestionPackages.AnyAsync(p => p.Name == newName))
+                {
+                    newName = $"{baseName} {counter}";
+                    counter++;
+                }
+
+                var newPkg = new QuestionPackage
+                {
+                    Name = newName,
+                    IsDefault = false,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                _dbContext.QuestionPackages.Add(newPkg);
+                await _dbContext.SaveChangesAsync();
+
+                var originalQuestions = await _dbContext.Questions.Where(q => q.QuestionPackageId == id).ToListAsync();
+                foreach (var q in originalQuestions)
+                {
+                    _dbContext.Questions.Add(new Question
+                    {
+                        QuestionPackageId = newPkg.Id,
+                        QuestionText = q.QuestionText,
+                        Answer1 = q.Answer1,
+                        Answer2 = q.Answer2,
+                        Answer3 = q.Answer3,
+                        CorrectAnswer = q.CorrectAnswer,
+                    });
+                }
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Question package duplicated.", QuestionPackageId = newPkg.Id, Name = newPkg.Name });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error duplicating question package", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// DELETE endpoint to delete a question package and its questions
+        /// </summary>
+        [HttpDelete("question-packages/{id}")]
+        public async Task<IActionResult> DeleteQuestionPackage(int id)
+        {
+            try
+            {
+                var pkg = await _dbContext.QuestionPackages.FindAsync(id);
+                if (pkg == null)
+                    return NotFound(new { Success = false, Message = "Question package not found." });
+
+                // Remove all questions in this package
+                var questions = _dbContext.Questions.Where(q => q.QuestionPackageId == id);
+                _dbContext.Questions.RemoveRange(questions);
+
+                _dbContext.QuestionPackages.Remove(pkg);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Question package deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error deleting question package", Error = ex.Message });
+            }
         }
     }
 
@@ -343,21 +904,13 @@ namespace BingoEvent.API.Controllers
 
     public class UpdateTextRequest
     {
-        public int BoardId { get; set; }
         public int Row { get; set; }
         public int Column { get; set; }
         public string NewText { get; set; }
     }
 
-    public class IssueBoardRequest
-    {
-        public string BoardName { get; set; }
-        public List<string> TextContent { get; set; }
-    }
-
     public class MarkBoxRequest
     {
-        public int BoardId { get; set; }
         public int Row { get; set; }
         public int Column { get; set; }
     }
@@ -365,5 +918,54 @@ namespace BingoEvent.API.Controllers
     public class MiniGameResultRequest
     {
         public bool Won { get; set; }
+    }
+
+    public class SaveBoardRequest
+    {
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public List<string>? Boxes { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class UpdateBoardRequest
+    {
+        public string? Name { get; set; }
+        public List<string>? Boxes { get; set; }
+    }
+
+    public class SaveWelcomePageRequest
+    {
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Title { get; set; }
+        public string? Subtitle { get; set; }
+    }
+
+    public class SaveEventRequest
+    {
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Creator { get; set; }
+        public int WelcomePageId { get; set; }
+        public int BingoBoardId { get; set; }
+        public List<string>? GameNames { get; set; }
+        public int? QuestionPackageId { get; set; }
+    }
+
+    public class SaveQuestionPackageRequest
+    {
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public List<SaveQuestionRequest>? Questions { get; set; }
+    }
+
+    public class SaveQuestionRequest
+    {
+        public string? QuestionText { get; set; }
+        public string? Answer1 { get; set; }
+        public string? Answer2 { get; set; }
+        public string? Answer3 { get; set; }
+        public int CorrectAnswer { get; set; } = 1;
     }
 }

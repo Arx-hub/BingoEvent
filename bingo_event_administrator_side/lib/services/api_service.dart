@@ -2,9 +2,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class ApiService {
-  // Use localhost:5000 for local Docker access from host browser
-  // The API is exposed on port 5000 in docker-compose.yml
-  static String baseUrl = 'http://localhost:5000/api/bingo';
+  // Use bingo-api:8080 for Docker container network communication
+  // This resolves to the internal container name on the bingo-network
+  static String baseUrl = 'http://bingo-api:8080/api/bingo';
 
   /// Sets the base URL for the API service (useful for switching environments)
   static void setBaseUrl(String url) {

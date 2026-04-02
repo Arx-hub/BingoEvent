@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class BingoBoardAPI {
-  static const String baseUrl = 'http://localhost:5000/api/bingo';
+  static const String baseUrl = 'http://bingo-api:8080/api/bingo';
   
   // Save a bingo board to the database
   static Future<Map<String, dynamic>> saveBoard({

@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class WelcomePageAPI {
-  static const String baseUrl = 'http://bingo-api:8080/api/bingo';
+  static const String baseUrl = 'http://localhost/api/bingo';
 
   static Future<Map<String, dynamic>> saveWelcomePage({
     required String name,

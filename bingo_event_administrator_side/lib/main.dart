@@ -2605,7 +2605,7 @@ class FeedbackTab extends StatefulWidget {
 }
 
 class _FeedbackTabState extends State<FeedbackTab> {
-  final String apiUrl = "http://bingo-api:8080/api/bingo";
+  final String apiUrl = "http://localhost/api/bingo";
   bool _isLoading = false;
   String _message = '';
   bool _isSuccess = false;
@@ -2649,7 +2649,7 @@ class _FeedbackTabState extends State<FeedbackTab> {
       setState(() {
         _isSuccess = false;
         _message =
-            'Error connecting to API: $e\n\nMake sure:\n1. API is running on http://bingo-api:8080\n2. Docker containers are started\n3. Check CORS settings if running separately';
+            'Error connecting to API: $e\n\nMake sure:\n1. API is running\n2. Docker containers are started\n3. Check CORS settings if running separately';
       });
     } finally {
       setState(() {
@@ -2698,12 +2698,12 @@ class _FeedbackTabState extends State<FeedbackTab> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text(
-                  'API Endpoint: http://bingo-api:8080/api/bingo/hello-world\n\n'
+                  'API Endpoint: http://localhost/api/bingo/hello-world\n\n'
                   'POST: Write "Hello World" to database\n'
                   'GET: Retrieve all entries\n\n'
                   'Use Postman to verify:\n'
-                  'POST http://bingo-api:8080/api/bingo/hello-world\n'
-                  'GET http://bingo-api:8080/api/bingo/hello-world',
+                  'POST http://localhost/api/bingo/hello-world\n'
+                  'GET http://localhost/api/bingo/hello-world',
                   style: TextStyle(fontSize: 12),
                 ),
               ),

@@ -2649,7 +2649,7 @@ class _FeedbackTabState extends State<FeedbackTab> {
       setState(() {
         _isSuccess = false;
         _message =
-            'Error connecting to API: $e\n\nMake sure:\n1. API is running on localhost:5000\n2. Docker containers are started\n3. Check CORS settings if running separately';
+            'Error connecting to API: $e\n\nMake sure:\n1. API is running on http://bingo-api:8080\n2. Docker containers are started\n3. Check CORS settings if running separately';
       });
     } finally {
       setState(() {

@@ -1,7 +1,7 @@
 services:
   # API Service
   bingo-api:
-    image: p41132/bingo_api2:latest
+    image: arxie/bingo_api2:latest
     container_name: bingo_api_container
     ports:
       - "5000:8080"
@@ -22,7 +22,7 @@ services:
 
   # Guest Side Service
   bingo-guest:
-    image: p41132/bingo_guest2:latest
+    image: arxie/bingo_guest2:latest
     container_name: bingo_guest_container
     ports:
       - "8081:80"
@@ -41,7 +41,7 @@ services:
 
   # Administrator Side Service
   bingo-admin:
-    image: p41132/bingo_admin2:latest
+    image: arxie/bingo_admin2:latest
     container_name: bingo_admin_container
     ports:
       - "8082:80"

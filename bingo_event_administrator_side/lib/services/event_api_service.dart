@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class EventAPI {
-  static const String baseUrl = 'http://localhost/api/bingo';
+  static const String baseUrl = '/api/bingo';
 
   static Future<Map<String, dynamic>> saveEvent({
     required String name,

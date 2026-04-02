@@ -2605,7 +2605,7 @@ class FeedbackTab extends StatefulWidget {
 }
 
 class _FeedbackTabState extends State<FeedbackTab> {
-  final String apiUrl = "http://localhost/api/bingo";
+  final String apiUrl = "/api/bingo";
   bool _isLoading = false;
   String _message = '';
   bool _isSuccess = false;

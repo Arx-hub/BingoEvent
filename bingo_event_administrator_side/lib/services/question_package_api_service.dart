@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class QuestionPackageAPI {
-  static const String baseUrl = 'http://localhost/api/bingo';
+  static const String baseUrl = '/api/bingo';
 
   static Future<List<Map<String, dynamic>>> getAllQuestionPackages() async {
     try {

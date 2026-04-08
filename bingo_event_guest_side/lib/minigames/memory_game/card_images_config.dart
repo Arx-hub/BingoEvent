@@ -7,12 +7,12 @@
 library;
 
 
-// Example 1: Fruit emojis (default)
-const List<String> fruitCards = [
-  '🍎', '🍌', '🍊', '🍋', '🍉',
-  '🍒', '🍑', '🍐', '🥝', '🍍',
-  '🍎', '🍌', '🍊', '🍋', '🍉',
-  '🍒', '🍑', '🍐', '🥝', '🍍',
+// Example 1: Profession emojis (default)
+const List<String> professionCards = [
+  '💻', '🖥️', '🩺', '🧁', '📊',
+  '✈️', '🧹', '🏠', '👨‍🍳', '🍽️',
+  '💻', '🖥️', '🩺', '🧁', '📊',
+  '✈️', '🧹', '🏠', '👨‍🍳', '🍽️',
 ];
 
 // Example 2: Animal emojis

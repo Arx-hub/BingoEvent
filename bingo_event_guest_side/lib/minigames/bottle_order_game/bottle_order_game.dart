@@ -179,11 +179,11 @@ class _BottleOrderGamePageState extends State<BottleOrderGamePage> {
   bool _won = false;
   
   final List<BottleColor> _availableColors = [
-    BottleColor(id: 1, color: Colors.red, name: 'Red'),
-    BottleColor(id: 2, color: Colors.blue, name: 'Blue'),
-    BottleColor(id: 3, color: Colors.yellow, name: 'Yellow'),
-    BottleColor(id: 4, color: Colors.green, name: 'Green'),
-    BottleColor(id: 5, color: Colors.purple, name: 'Purple'),
+    BottleColor(id: 1, color: const Color(0xFFFF9EB3), name: 'Pink'),
+    BottleColor(id: 2, color: const Color(0xFF3B4B6B), name: 'Navy'),
+    BottleColor(id: 3, color: Colors.black, name: 'Black'),
+    BottleColor(id: 4, color: Colors.white, name: 'White'),
+    BottleColor(id: 5, color: Colors.red, name: 'Red'),
   ];
 
   @override

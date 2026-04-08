@@ -598,7 +598,7 @@ class _EventEditorState extends State<EventEditor> {
                 const SizedBox(height: 24),
                 // Welcome Page dropdown
                 DropdownButtonFormField<int>(
-                  value: widget.welcomePages.any((p) => p['id'] == selectedWelcomePageId)
+                  initialValue: widget.welcomePages.any((p) => p['id'] == selectedWelcomePageId)
                       ? selectedWelcomePageId
                       : null,
                   decoration: const InputDecoration(
@@ -620,7 +620,7 @@ class _EventEditorState extends State<EventEditor> {
                 const SizedBox(height: 16),
                 // Bingo Board dropdown
                 DropdownButtonFormField<int>(
-                  value: widget.bingoBoards.any((b) => b['id'] == selectedBingoBoardId)
+                  initialValue: widget.bingoBoards.any((b) => b['id'] == selectedBingoBoardId)
                       ? selectedBingoBoardId
                       : null,
                   decoration: const InputDecoration(
@@ -668,7 +668,7 @@ class _EventEditorState extends State<EventEditor> {
                 const SizedBox(height: 24),
                 // Question Package dropdown
                 DropdownButtonFormField<int?>(
-                  value: widget.questionPackages.any((p) => p['id'] == selectedQuestionPackageId)
+                  initialValue: widget.questionPackages.any((p) => p['id'] == selectedQuestionPackageId)
                       ? selectedQuestionPackageId
                       : null,
                   decoration: const InputDecoration(
@@ -2605,7 +2605,7 @@ class FeedbackTab extends StatefulWidget {
 }
 
 class _FeedbackTabState extends State<FeedbackTab> {
-  final String apiUrl = "http://localhost:5000/api/bingo";
+  final String apiUrl = "/api/bingo";
   bool _isLoading = false;
   String _message = '';
   bool _isSuccess = false;
@@ -2649,7 +2649,7 @@ class _FeedbackTabState extends State<FeedbackTab> {
       setState(() {
         _isSuccess = false;
         _message =
-            'Error connecting to API: $e\n\nMake sure:\n1. API is running on localhost:5000\n2. Docker containers are started\n3. Check CORS settings if running separately';
+            'Error connecting to API: $e\n\nMake sure:\n1. API is running\n2. Docker containers are started\n3. Check CORS settings if running separately';
       });
     } finally {
       setState(() {
@@ -2698,12 +2698,12 @@ class _FeedbackTabState extends State<FeedbackTab> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text(
-                  'API Endpoint: http://localhost:5000/api/bingo/hello-world\n\n'
+                  'API Endpoint: http://localhost/api/bingo/hello-world\n\n'
                   'POST: Write "Hello World" to database\n'
                   'GET: Retrieve all entries\n\n'
                   'Use Postman to verify:\n'
-                  'POST http://localhost:5000/api/bingo/hello-world\n'
-                  'GET http://localhost:5000/api/bingo/hello-world',
+                  'POST http://localhost/api/bingo/hello-world\n'
+                  'GET http://localhost/api/bingo/hello-world',
                   style: TextStyle(fontSize: 12),
                 ),
               ),
@@ -2900,10 +2900,10 @@ class EventPreviewWelcome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blue.shade600,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Preview: Welcome Page'),
-        backgroundColor: Colors.blue.shade800,
+        backgroundColor: const Color(0xFF3B4B6B),
         foregroundColor: Colors.white,
         actions: [
           TextButton(
@@ -2913,13 +2913,7 @@ class EventPreviewWelcome extends StatelessWidget {
         ],
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade300, Colors.blue.shade700],
-          ),
-        ),
+        color: Colors.white,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2932,7 +2926,7 @@ class EventPreviewWelcome extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Color(0xFF3B4B6B),
                   ),
                 ),
               ),
@@ -2945,7 +2939,7 @@ class EventPreviewWelcome extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 18,
-                      color: Colors.white70,
+                      color: Color(0xFF3B4B6B),
                     ),
                   ),
                 ),
@@ -2966,8 +2960,8 @@ class EventPreviewWelcome extends StatelessWidget {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.blue,
+                  backgroundColor: const Color(0xFFFF9EB3),
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
                 ),
                 child: const Text(
@@ -2978,7 +2972,7 @@ class EventPreviewWelcome extends StatelessWidget {
               const SizedBox(height: 32),
               const Text(
                 '(Preview — this is what the guest sees)',
-                style: TextStyle(fontSize: 11, color: Colors.white54),
+                style: TextStyle(fontSize: 11, color: Color(0xFF3B4B6B)),
               ),
             ],
           ),

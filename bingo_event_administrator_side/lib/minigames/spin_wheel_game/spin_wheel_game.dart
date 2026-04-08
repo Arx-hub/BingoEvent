@@ -27,8 +27,8 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
   bool _showResult = false;
   bool _isOverlayVisible = false;
   
-  final List<String> _colors = ['red', 'blue'];
-  final List<Color> _colorValues = [Colors.red, Colors.blue];
+  final List<String> _colors = ['pink', 'navy'];
+  final List<Color> _colorValues = [const Color(0xFFFF9EB3), const Color(0xFF3B4B6B)];
   
   final Random _random = Random();
 
@@ -146,9 +146,9 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildColorButton('Red', Colors.red, 0),
+                        _buildColorButton('Pink', const Color(0xFFFF9EB3), 0),
                         const SizedBox(width: 16),
-                        _buildColorButton('Blue', Colors.blue, 1),
+                        _buildColorButton('Navy', const Color(0xFF3B4B6B), 1),
                       ],
                     ),
 
@@ -399,7 +399,7 @@ class WheelPainter extends CustomPainter {
     final radius = min(size.width, size.height) / 2;
 
     // Draw wheel segments
-    const colors = [Colors.red, Colors.blue];
+    const colors = [Color(0xFFFF9EB3), Color(0xFF3B4B6B)];
     
     for (int i = 0; i < 2; i++) {
       paint.color = colors[i];

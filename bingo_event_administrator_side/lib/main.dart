@@ -2900,10 +2900,10 @@ class EventPreviewWelcome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blue.shade600,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Preview: Welcome Page'),
-        backgroundColor: Colors.blue.shade800,
+        backgroundColor: const Color(0xFF3B4B6B),
         foregroundColor: Colors.white,
         actions: [
           TextButton(
@@ -2913,13 +2913,7 @@ class EventPreviewWelcome extends StatelessWidget {
         ],
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade300, Colors.blue.shade700],
-          ),
-        ),
+        color: Colors.white,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2932,7 +2926,7 @@ class EventPreviewWelcome extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Color(0xFF3B4B6B),
                   ),
                 ),
               ),
@@ -2945,7 +2939,7 @@ class EventPreviewWelcome extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 18,
-                      color: Colors.white70,
+                      color: Color(0xFF3B4B6B),
                     ),
                   ),
                 ),
@@ -2966,8 +2960,8 @@ class EventPreviewWelcome extends StatelessWidget {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.blue,
+                  backgroundColor: const Color(0xFFFF9EB3),
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
                 ),
                 child: const Text(
@@ -2978,7 +2972,7 @@ class EventPreviewWelcome extends StatelessWidget {
               const SizedBox(height: 32),
               const Text(
                 '(Preview — this is what the guest sees)',
-                style: TextStyle(fontSize: 11, color: Colors.white54),
+                style: TextStyle(fontSize: 11, color: Color(0xFF3B4B6B)),
               ),
             ],
           ),

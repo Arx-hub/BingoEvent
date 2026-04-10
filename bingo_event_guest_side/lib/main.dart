@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'minigames/games_registry.dart';
 import 'minigames/game_selection_page.dart';
+import 'services/event_api_service.dart';
+import 'services/feedback_api_service.dart';
 
 void main() {
   runApp(const GuestApp());
@@ -22,8 +24,77 @@ class GuestApp extends StatelessWidget {
   }
 }
 
-class WelcomePage extends StatelessWidget {
+class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
+
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  bool _isLoading = true;
+  String? _errorMessage;
+  String _title = 'Welcome to the Bingo Game!';
+  String _subtitle = '';
+  String _eventName = '';
+  List<String> _boxes = [];
+  List<String> _gameNames = [];
+  List<Map<String, dynamic>>? _questions;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPublishedEvent();
+  }
+
+  Future<void> _loadPublishedEvent() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final data = await EventAPI.getPublishedEvent();
+
+    if (!mounted) return;
+
+    if (data == null) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'No event is currently published.';
+      });
+      return;
+    }
+
+    final welcomePage = data['welcomePage'];
+    if (welcomePage != null) {
+      _title = (welcomePage['title'] ?? 'Welcome!').toString();
+      _subtitle = (welcomePage['subtitle'] ?? '').toString();
+    }
+
+    final event = data['event'];
+    if (event != null) {
+      _eventName = (event['name'] ?? '').toString();
+      if (event['gameNames'] is List) {
+        _gameNames = (event['gameNames'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    final bingoBoard = data['bingoBoard'];
+    if (bingoBoard != null && bingoBoard['boxes'] is List) {
+      _boxes = (bingoBoard['boxes'] as List).map((e) => e?.toString() ?? '').toList();
+    }
+
+    final questionPackage = data['questionPackage'];
+    if (questionPackage != null && questionPackage['questions'] is List) {
+      _questions = List<Map<String, dynamic>>.from(
+        (questionPackage['questions'] as List).map((q) => Map<String, dynamic>.from(q)),
+      );
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,35 +103,67 @@ class WelcomePage extends StatelessWidget {
         title: const Text('Welcome'),
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Welcome to the Bingo Game!',
-              style: TextStyle(fontSize: 18),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const BingoBoardPage(),
+        child: _isLoading
+            ? const CircularProgressIndicator()
+            : _errorMessage != null
+                ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _errorMessage!,
+                        style: const TextStyle(fontSize: 16),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadPublishedEvent,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _title,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (_subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _subtitle,
+                          style: const TextStyle(fontSize: 16),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BingoBoardPage(
+                                boxes: _boxes,
+                                gameNames: _gameNames,
+                                questions: _questions,
+                                eventName: _eventName,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Continue'),
+                      ),
+                    ],
                   ),
-                );
-              },
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
       ),
     );
   }
 }
 
 class BingoWinPage extends StatelessWidget {
-  const BingoWinPage({super.key});
+  final String eventName;
+  const BingoWinPage({super.key, required this.eventName});
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +191,7 @@ class BingoWinPage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const FeedbackPage(),
+                    builder: (context) => FeedbackPage(eventName: eventName),
                   ),
                 );
               },
@@ -146,7 +249,8 @@ class ThankYouPage extends StatelessWidget {
 }
 
 class FeedbackPage extends StatefulWidget {
-  const FeedbackPage({super.key});
+  final String eventName;
+  const FeedbackPage({super.key, required this.eventName});
 
   @override
   State<FeedbackPage> createState() => _FeedbackPageState();
@@ -154,6 +258,7 @@ class FeedbackPage extends StatefulWidget {
 
 class _FeedbackPageState extends State<FeedbackPage> {
   int? _selectedFeedback;
+  bool _isSubmitting = false;
   final List<String> _feedbackEmojis = ['😞', '😕', '😐', '🙂', '😄'];
 
   @override
@@ -212,8 +317,15 @@ class _FeedbackPageState extends State<FeedbackPage> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _selectedFeedback != null
-                  ? () {
+              onPressed: _selectedFeedback != null && !_isSubmitting
+                  ? () async {
+                      setState(() => _isSubmitting = true);
+                      // Rating: 1-5 (index 0-4 maps to 1-5)
+                      await FeedbackAPI.submitFeedback(
+                        _selectedFeedback! + 1,
+                        widget.eventName,
+                      );
+                      if (!mounted) return;
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -222,7 +334,13 @@ class _FeedbackPageState extends State<FeedbackPage> {
                       );
                     }
                   : null,
-              child: const Text('Submit Feedback'),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Submit Feedback'),
             ),
           ],
         ),
@@ -284,19 +402,32 @@ class MinigameWinPage extends StatelessWidget {
 }
 
 class BingoBoardPage extends StatefulWidget {
+  final List<String>? boxes;
+  final List<String>? gameNames;
   final List<Map<String, dynamic>>? questions;
+  final String eventName;
 
-  const BingoBoardPage({super.key, this.questions});
+  const BingoBoardPage({super.key, this.boxes, this.gameNames, this.questions, this.eventName = ''});
 
   @override
   State<BingoBoardPage> createState() => _BingoBoardPageState();
 }
 
 class _BingoBoardPageState extends State<BingoBoardPage> {
-  final List<List<String>> _board = List.generate(5, (i) => List.generate(5, (j) => 'Box ${i + 1},${j + 1}'));
+  late final List<List<String>> _board;
   final List<List<bool>> _checkedBoxes = List.generate(5, (_) => List.generate(5, (_) => false));
   int _checkedCount = 0;
   final _random = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.boxes != null && widget.boxes!.length >= 25) {
+      _board = List.generate(5, (i) => List.generate(5, (j) => widget.boxes![i * 5 + j]));
+    } else {
+      _board = List.generate(5, (i) => List.generate(5, (j) => 'Box ${i + 1},${j + 1}'));
+    }
+  }
 
   void _checkWinCondition() {
     // Check rows
@@ -326,7 +457,7 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const BingoWinPage(),
+        builder: (context) => BingoWinPage(eventName: widget.eventName),
       ),
     );
   }
@@ -334,7 +465,11 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
   void _onThreeBoxesChecked() {
     // Trivia is treated as one minigame option in the pool
     final hasQuestions = widget.questions != null && widget.questions!.length >= 3;
-    final games = GamesRegistry.availableGames;
+    // Filter games based on event's gameNames if provided
+    final allGames = GamesRegistry.availableGames;
+    final games = widget.gameNames != null && widget.gameNames!.isNotEmpty
+        ? allGames.where((g) => widget.gameNames!.contains(g.name)).toList()
+        : allGames;
     final hasGames = games.isNotEmpty;
 
     if (hasQuestions || hasGames) {
@@ -570,26 +705,19 @@ class _TriviaChallengePageState extends State<TriviaChallengePage> {
   void _nextQuestion() {
     if (!_answered) return;
 
-    final correctAnswer = _question['correctAnswer'] is int
-        ? _question['correctAnswer'] as int
-        : 1;
-    final wasCorrect = _selectedAnswer == correctAnswer;
-
-    if (!wasCorrect) {
-      // Wrong answer - fail immediately
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Wrong answer! No free pick this time.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      widget.onLose();
-      return;
-    }
-
     if (_currentQuestion + 1 >= widget.questions.length) {
-      // All questions answered correctly
-      widget.onWin();
+      // All questions answered - check if all were correct
+      if (_correctCount == widget.questions.length) {
+        widget.onWin();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('You got $_correctCount/${widget.questions.length} correct. No free pick this time.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        widget.onLose();
+      }
       return;
     }
 
@@ -669,11 +797,9 @@ class _TriviaChallengePageState extends State<TriviaChallengePage> {
                           : Colors.red,
                     ),
                     child: Text(
-                      _selectedAnswer == correctAnswer
-                          ? (_currentQuestion + 1 >= widget.questions.length
-                              ? 'Finish!'
-                              : 'Next Question')
-                          : 'Back to Board',
+                      _currentQuestion + 1 >= widget.questions.length
+                          ? 'Finish!'
+                          : 'Next Question',
                       style: const TextStyle(fontSize: 16, color: Colors.white),
                     ),
                   ),

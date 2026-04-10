@@ -6,6 +6,7 @@ import 'services/bingo_api_service.dart';
 import 'services/welcome_page_api_service.dart';
 import 'services/event_api_service.dart';
 import 'services/question_package_api_service.dart';
+import 'services/feedback_api_service.dart';
 import 'minigames/games_registry.dart';
 
 void main() {
@@ -233,6 +234,39 @@ class _EventsTabState extends State<EventsTab> {
     );
   }
 
+  void _togglePublish(int index) async {
+    final evt = events[index];
+    final id = evt['id'] as int?;
+    if (id == null) return;
+
+    final isPublished = evt['isPublished'] == true;
+
+    try {
+      if (isPublished) {
+        await EventAPI.unpublishEvent(id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Event unpublished.')),
+          );
+        }
+      } else {
+        await EventAPI.publishEvent(id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Event "${evt['name']}" published to guests!')),
+          );
+        }
+      }
+      _loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
   void _previewEvent(int index) async {
     // Refresh data to get latest question packages before preview
     await _loadAll();
@@ -377,7 +411,25 @@ class _EventsTabState extends State<EventsTab> {
                       return Card(
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         child: ListTile(
-                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          title: Row(
+                            children: [
+                              Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              if (evt['isPublished'] == true) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text(
+                                    'PUBLISHED',
+                                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -392,6 +444,14 @@ class _EventsTabState extends State<EventsTab> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              IconButton(
+                                icon: Icon(
+                                  evt['isPublished'] == true ? Icons.cloud_done : Icons.cloud_upload,
+                                  color: evt['isPublished'] == true ? Colors.green : Colors.grey,
+                                ),
+                                tooltip: evt['isPublished'] == true ? 'Unpublish' : 'Publish to guests',
+                                onPressed: () => _togglePublish(index),
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.preview, color: Colors.green),
                                 tooltip: 'Preview guest experience',
@@ -2605,273 +2665,214 @@ class FeedbackTab extends StatefulWidget {
 }
 
 class _FeedbackTabState extends State<FeedbackTab> {
-  final String apiUrl = "/api/bingo";
+  List<Map<String, dynamic>> _feedbacks = [];
   bool _isLoading = false;
-  String _message = '';
-  bool _isSuccess = false;
-  List<dynamic> _helloWorlds = [];
+  final List<String> _feedbackEmojis = ['😞', '😕', '😐', '🙂', '😄'];
 
   @override
   void initState() {
     super.initState();
-    _loadHelloWorlds();
+    _loadFeedback();
   }
 
-  Future<void> _writeHelloWorld() async {
+  Future<void> _loadFeedback() async {
+    setState(() => _isLoading = true);
+    final feedbacks = await FeedbackApiService.getAllFeedback();
+    if (!mounted) return;
     setState(() {
-      _isLoading = true;
-      _message = '';
+      _feedbacks = feedbacks;
+      _isLoading = false;
     });
-
-    try {
-      final response = await http.post(
-        Uri.parse('$apiUrl/hello-world'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _isSuccess = true;
-          _message =
-              'Success! Entry ID: ${data['entryId']} - Created at: ${data['createdAt']}';
-        });
-        // Reload the hello worlds list
-        await _loadHelloWorlds();
-      } else {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _isSuccess = false;
-          _message = 'Error: ${data['message'] ?? 'Unknown error'}';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _isSuccess = false;
-        _message =
-            'Error connecting to API: $e\n\nMake sure:\n1. API is running\n2. Docker containers are started\n3. Check CORS settings if running separately';
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
-  Future<void> _loadHelloWorlds() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$apiUrl/hello-world'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _helloWorlds = data['entries'] ?? [];
-        });
-      }
-    } catch (e) {
-      // Silently fail for loading
+  /// Group feedbacks by eventPackageName and compute average rating per group
+  Map<String, List<Map<String, dynamic>>> _groupByEvent() {
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (final f in _feedbacks) {
+      final name = (f['eventPackageName'] ?? 'Unknown').toString();
+      grouped.putIfAbsent(name, () => []).add(f);
     }
+    return grouped;
+  }
+
+  double _averageRating(List<Map<String, dynamic>> items) {
+    if (items.isEmpty) return 0;
+    final total = items.fold<int>(0, (sum, f) => sum + ((f['rating'] as int?) ?? 0));
+    return total / items.length;
   }
 
   @override
   Widget build(BuildContext context) {
+    final grouped = _groupByEvent();
+    final eventNames = grouped.keys.toList();
+
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Hello World Database Test',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  border: Border.all(color: Colors.blue),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'API Endpoint: http://localhost/api/bingo/hello-world\n\n'
-                  'POST: Write "Hello World" to database\n'
-                  'GET: Retrieve all entries\n\n'
-                  'Use Postman to verify:\n'
-                  'POST http://localhost/api/bingo/hello-world\n'
-                  'GET http://localhost/api/bingo/hello-world',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _writeHelloWorld,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 32, vertical: 16),
-                  backgroundColor: Colors.green,
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Text(
-                        'Write Hello World to Database',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-              ),
-              const SizedBox(height: 16),
-              if (_message.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _isSuccess ? Colors.green.shade50 : Colors.red.shade50,
-                    border: Border.all(
-                        color:
-                            _isSuccess ? Colors.green : Colors.red),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _feedbacks.isEmpty
+              ? const Center(
                   child: Text(
-                    _message,
-                    style: TextStyle(
-                      color:
-                          _isSuccess ? Colors.green.shade900 : Colors.red.shade900,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 32),
-              const Text(
-                'Database Entries (Last 10)',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              if (_helloWorlds.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'No entries yet. Click the button above to create one!',
-                    style: TextStyle(color: Colors.grey),
+                    'No guest feedback yet.\nFeedback will appear here when guests submit it after completing bingo.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                 )
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _helloWorlds.length,
-                  itemBuilder: (context, index) {
-                    final entry = _helloWorlds[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'ID: ${entry['id']}',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  '${index + 1}',
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Guest Feedback',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_feedbacks.length} total responses',
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Satisfaction comparison chart
+                      const Text(
+                        'Satisfaction by Event Package',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      ...eventNames.map((name) {
+                        final items = grouped[name]!;
+                        final avg = _averageRating(items);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      name.isEmpty ? 'Unnamed Event' : name,
+                                      style: const TextStyle(fontWeight: FontWeight.w500),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${avg.toStringAsFixed(1)}/5 (${items.length} responses)',
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: LinearProgressIndicator(
+                                  value: avg / 5.0,
+                                  minHeight: 20,
+                                  backgroundColor: Colors.grey.shade200,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    avg >= 4
+                                        ? Colors.green
+                                        : avg >= 3
+                                            ? Colors.amber
+                                            : Colors.red,
                                   ),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Message: ${entry['message']}',
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Created: ${entry['createdAt']}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+
+                      const SizedBox(height: 24),
+
+                      // Rating distribution
+                      const Text(
+                        'Overall Rating Distribution',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      ...List.generate(5, (i) {
+                        final rating = i + 1;
+                        final count = _feedbacks.where((f) => f['rating'] == rating).length;
+                        final pct = _feedbacks.isNotEmpty ? count / _feedbacks.length : 0.0;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Text(_feedbackEmojis[i], style: const TextStyle(fontSize: 24)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: pct,
+                                    minHeight: 16,
+                                    backgroundColor: Colors.grey.shade200,
+                                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 40,
+                                child: Text(
+                                  '$count',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+
+                      const SizedBox(height: 24),
+
+                      // Recent feedback entries
+                      const Text(
+                        'Recent Feedback',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _feedbacks.length > 20 ? 20 : _feedbacks.length,
+                        itemBuilder: (context, index) {
+                          final f = _feedbacks[index];
+                          final rating = (f['rating'] as int?) ?? 1;
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: ListTile(
+                              leading: Text(
+                                _feedbackEmojis[(rating - 1).clamp(0, 4)],
+                                style: const TextStyle(fontSize: 28),
+                              ),
+                              title: Text(
+                                (f['eventPackageName'] ?? 'Unknown').toString(),
+                                style: const TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                              subtitle: Text(
+                                (f['createdAt'] ?? '').toString(),
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              trailing: Text(
+                                '$rating/5',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
-            ],
-          ),
-        ),
-      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _loadHelloWorlds,
+        onPressed: _loadFeedback,
         tooltip: 'Refresh',
         child: const Icon(Icons.refresh),
-      ),
-    );
-  }
-}
-
-class NewFeedbackForm extends StatelessWidget {
-  const NewFeedbackForm({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create New Feedback'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Feedback Name',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              maxLines: 5,
-              decoration: const InputDecoration(
-                labelText: 'Feedback Message',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                // Save feedback logic
-              },
-              child: const Text('Save Feedback'),
-            ),
-          ],
-        ),
       ),
     );
   }

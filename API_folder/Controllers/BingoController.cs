@@ -529,7 +529,8 @@ namespace BingoEvent.API.Controllers
                     GameNames = string.IsNullOrEmpty(e.GameNames)
                         ? new List<string>()
                         : System.Text.Json.JsonSerializer.Deserialize<List<string>>(e.GameNames),
-                    e.QuestionPackageId
+                    e.QuestionPackageId,
+                    e.IsPublished
                 }).ToList();
                 return Ok(new { Success = true, Count = events.Count, Events = result });
             }
@@ -564,7 +565,8 @@ namespace BingoEvent.API.Controllers
                         GameNames = string.IsNullOrEmpty(evt.GameNames)
                             ? new List<string>()
                             : System.Text.Json.JsonSerializer.Deserialize<List<string>>(evt.GameNames),
-                        evt.QuestionPackageId
+                        evt.QuestionPackageId,
+                        evt.IsPublished
                     }
                 });
             }
@@ -651,6 +653,145 @@ namespace BingoEvent.API.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { Success = false, Message = "Error deleting event", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to publish an event (un-publishes all others)
+        /// </summary>
+        [HttpPost("events/{id}/publish")]
+        public async Task<IActionResult> PublishEvent(int id)
+        {
+            try
+            {
+                var evt = await _dbContext.Events.FindAsync(id);
+                if (evt == null)
+                    return NotFound(new { Success = false, Message = "Event not found." });
+
+                // Un-publish all events
+                var allEvents = await _dbContext.Events.ToListAsync();
+                foreach (var e in allEvents)
+                {
+                    e.IsPublished = false;
+                }
+
+                // Publish the selected event
+                evt.IsPublished = true;
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Event published.", EventId = evt.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error publishing event", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// POST endpoint to unpublish an event
+        /// </summary>
+        [HttpPost("events/{id}/unpublish")]
+        public async Task<IActionResult> UnpublishEvent(int id)
+        {
+            try
+            {
+                var evt = await _dbContext.Events.FindAsync(id);
+                if (evt == null)
+                    return NotFound(new { Success = false, Message = "Event not found." });
+
+                evt.IsPublished = false;
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Event unpublished.", EventId = evt.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error unpublishing event", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve the currently published event with all related data
+        /// </summary>
+        [HttpGet("published-event")]
+        public async Task<IActionResult> GetPublishedEvent()
+        {
+            try
+            {
+                var evt = await _dbContext.Events.FirstOrDefaultAsync(e => e.IsPublished);
+                if (evt == null)
+                    return NotFound(new { Success = false, Message = "No event is currently published." });
+
+                // Get welcome page
+                var welcomePage = await _dbContext.WelcomePages.FindAsync(evt.WelcomePageId);
+
+                // Get bingo board
+                var bingoBoard = await _dbContext.BingoBoards.FindAsync(evt.BingoBoardId);
+
+                // Get question package with questions
+                object questionPackageData = null;
+                if (evt.QuestionPackageId.HasValue)
+                {
+                    var qp = await _dbContext.QuestionPackages.FindAsync(evt.QuestionPackageId.Value);
+                    if (qp != null)
+                    {
+                        var questions = await _dbContext.Questions
+                            .Where(q => q.QuestionPackageId == qp.Id)
+                            .ToListAsync();
+                        questionPackageData = new
+                        {
+                            qp.Id,
+                            qp.Name,
+                            Questions = questions.Select(q => new
+                            {
+                                q.Id,
+                                q.QuestionText,
+                                q.Answer1,
+                                q.Answer2,
+                                q.Answer3,
+                                q.CorrectAnswer
+                            }).ToList()
+                        };
+                    }
+                }
+
+                return Ok(new
+                {
+                    Success = true,
+                    Event = new
+                    {
+                        evt.Id,
+                        evt.Name,
+                        evt.Creator,
+                        evt.WelcomePageId,
+                        evt.BingoBoardId,
+                        GameNames = string.IsNullOrEmpty(evt.GameNames)
+                            ? new List<string>()
+                            : System.Text.Json.JsonSerializer.Deserialize<List<string>>(evt.GameNames),
+                        evt.QuestionPackageId,
+                        evt.IsPublished
+                    },
+                    WelcomePage = welcomePage != null ? new
+                    {
+                        welcomePage.Id,
+                        welcomePage.Name,
+                        welcomePage.Title,
+                        welcomePage.Subtitle
+                    } : null,
+                    BingoBoard = bingoBoard != null ? new
+                    {
+                        bingoBoard.Id,
+                        bingoBoard.Name,
+                        Boxes = string.IsNullOrEmpty(bingoBoard.Boxes)
+                            ? new List<string>()
+                            : System.Text.Json.JsonSerializer.Deserialize<List<string>>(bingoBoard.Boxes),
+                    } : null,
+                    QuestionPackage = questionPackageData
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving published event", Error = ex.Message });
             }
         }
 
@@ -895,6 +1036,67 @@ namespace BingoEvent.API.Controllers
                 return StatusCode(500, new { Success = false, Message = "Error deleting question package", Error = ex.Message });
             }
         }
+
+        // ==================== Feedback Endpoints ====================
+
+        /// <summary>
+        /// POST endpoint to submit guest feedback
+        /// </summary>
+        [HttpPost("feedback")]
+        public async Task<IActionResult> SubmitFeedback([FromBody] SubmitFeedbackRequest request)
+        {
+            try
+            {
+                if (request.Rating < 1 || request.Rating > 5)
+                    return BadRequest(new { Success = false, Message = "Rating must be between 1 and 5." });
+
+                var feedback = new Feedback
+                {
+                    Rating = request.Rating,
+                    EventPackageName = request.EventPackageName ?? "",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _dbContext.Feedbacks.Add(feedback);
+                await _dbContext.SaveChangesAsync();
+
+                return Ok(new { Success = true, Message = "Feedback submitted successfully.", FeedbackId = feedback.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error submitting feedback", Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// GET endpoint to retrieve all feedback entries
+        /// </summary>
+        [HttpGet("feedback")]
+        public async Task<IActionResult> GetFeedback()
+        {
+            try
+            {
+                var feedbacks = await _dbContext.Feedbacks
+                    .OrderByDescending(f => f.CreatedAt)
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    Success = true,
+                    Feedbacks = feedbacks.Select(f => new
+                    {
+                        f.Id,
+                        f.Rating,
+                        f.EventPackageName,
+                        CreatedAt = f.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")
+                    }).ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = "Error retrieving feedback", Error = ex.Message });
+            }
+        }
     }
 
     public static class BingoBoardState
@@ -967,5 +1169,11 @@ namespace BingoEvent.API.Controllers
         public string? Answer2 { get; set; }
         public string? Answer3 { get; set; }
         public int CorrectAnswer { get; set; } = 1;
+    }
+
+    public class SubmitFeedbackRequest
+    {
+        public int Rating { get; set; }
+        public string? EventPackageName { get; set; }
     }
 }

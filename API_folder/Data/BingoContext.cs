@@ -15,6 +15,7 @@ namespace BingoEvent.API.Data
         public DbSet<HelloWorldEntry> HelloWorldEntries { get; set; }
         public DbSet<QuestionPackage> QuestionPackages { get; set; }
         public DbSet<Question> Questions { get; set; }
+        public DbSet<Feedback> Feedbacks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -40,6 +41,7 @@ namespace BingoEvent.API.Data
         public int BingoBoardId { get; set; }
         public string GameNames { get; set; } = "[]";
         public int? QuestionPackageId { get; set; }
+        public bool IsPublished { get; set; } = false;
     }
 
     public class WelcomePage
@@ -91,5 +93,13 @@ namespace BingoEvent.API.Data
         public string Answer2 { get; set; } = "";
         public string Answer3 { get; set; } = "";
         public int CorrectAnswer { get; set; } = 1;
+    }
+
+    public class Feedback
+    {
+        public int Id { get; set; }
+        public int Rating { get; set; }
+        public string EventPackageName { get; set; } = "";
+        public DateTime CreatedAt { get; set; }
     }
 }

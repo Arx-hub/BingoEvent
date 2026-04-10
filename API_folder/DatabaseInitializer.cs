@@ -132,6 +132,22 @@ public static class DatabaseInitializer
         // Add missing columns to Events if they don't exist (for existing DBs)
         AddColumnIfNotExists(connection, "Events", "QuestionPackageId", "INTEGER");
 
+        // Add IsPublished column to Events if it doesn't exist (for existing DBs)
+        AddColumnIfNotExists(connection, "Events", "IsPublished", "INTEGER NOT NULL DEFAULT 0");
+
+        // Feedbacks table
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS Feedbacks (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Rating INTEGER NOT NULL,
+                    EventPackageName TEXT NOT NULL DEFAULT '',
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+                );";
+            cmd.ExecuteNonQuery();
+        }
+
         // Seed default WelcomePage if empty
         using (var cmd = connection.CreateCommand())
         {

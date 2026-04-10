@@ -87,4 +87,44 @@ class EventAPI {
       throw Exception('Error deleting event: $e');
     }
   }
+
+  static Future<bool> publishEvent(int id) async {
+    try {
+      final url = Uri.parse('$baseUrl/events/$id/publish');
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      } else {
+        throw Exception('Failed to publish event: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error publishing event: $e');
+    }
+  }
+
+  static Future<bool> unpublishEvent(int id) async {
+    try {
+      final url = Uri.parse('$baseUrl/events/$id/unpublish');
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      } else {
+        throw Exception('Failed to unpublish event: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error unpublishing event: $e');
+    }
+  }
 }

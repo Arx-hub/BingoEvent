@@ -135,6 +135,9 @@ public static class DatabaseInitializer
         // Add IsPublished column to Events if it doesn't exist (for existing DBs)
         AddColumnIfNotExists(connection, "Events", "IsPublished", "INTEGER NOT NULL DEFAULT 0");
 
+        // Add PublishedAt column to Events if it doesn't exist (for existing DBs)
+        AddColumnIfNotExists(connection, "Events", "PublishedAt", "TEXT");
+
         // Feedbacks table
         using (var cmd = connection.CreateCommand())
         {

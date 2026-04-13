@@ -530,7 +530,8 @@ namespace BingoEvent.API.Controllers
                         ? new List<string>()
                         : System.Text.Json.JsonSerializer.Deserialize<List<string>>(e.GameNames),
                     e.QuestionPackageId,
-                    e.IsPublished
+                    e.IsPublished,
+                    e.PublishedAt
                 }).ToList();
                 return Ok(new { Success = true, Count = events.Count, Events = result });
             }
@@ -566,7 +567,8 @@ namespace BingoEvent.API.Controllers
                             ? new List<string>()
                             : System.Text.Json.JsonSerializer.Deserialize<List<string>>(evt.GameNames),
                         evt.QuestionPackageId,
-                        evt.IsPublished
+                        evt.IsPublished,
+                        evt.PublishedAt
                     }
                 });
             }
@@ -677,6 +679,7 @@ namespace BingoEvent.API.Controllers
 
                 // Publish the selected event
                 evt.IsPublished = true;
+                evt.PublishedAt = DateTime.UtcNow.ToString("o");
                 await _dbContext.SaveChangesAsync();
 
                 return Ok(new { Success = true, Message = "Event published.", EventId = evt.Id });
@@ -700,6 +703,7 @@ namespace BingoEvent.API.Controllers
                     return NotFound(new { Success = false, Message = "Event not found." });
 
                 evt.IsPublished = false;
+                evt.PublishedAt = null;
                 await _dbContext.SaveChangesAsync();
 
                 return Ok(new { Success = true, Message = "Event unpublished.", EventId = evt.Id });
@@ -1097,6 +1101,34 @@ namespace BingoEvent.API.Controllers
                 return StatusCode(500, new { Success = false, Message = "Error retrieving feedback", Error = ex.Message });
             }
         }
+
+        /// <summary>
+        /// POST endpoint for admin login
+        /// </summary>
+        [HttpPost("admin/login")]
+        public IActionResult AdminLogin([FromBody] AdminLoginRequest? request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
+                return BadRequest(new { Success = false, Message = "Username and password are required." });
+
+            // Stored hash of the admin password (SHA256 of "Saskytampere")
+            const string validUsername = "Sasky1";
+            const string validPasswordHash = "0f4ac9e19b1d7104f165e201433db85c519d008b4dc37b950442a3c45c86e7bb";
+
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var inputBytes = System.Text.Encoding.UTF8.GetBytes(request.Password);
+            var hashBytes = sha256.ComputeHash(inputBytes);
+            var inputHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+
+            if (request.Username == validUsername && inputHash == validPasswordHash)
+            {
+                return Ok(new { Success = true, Message = "Login successful." });
+            }
+            else
+            {
+                return Unauthorized(new { Success = false, Message = "Invalid username or password." });
+            }
+        }
     }
 
     public static class BingoBoardState
@@ -1175,5 +1207,11 @@ namespace BingoEvent.API.Controllers
     {
         public int Rating { get; set; }
         public string? EventPackageName { get; set; }
+    }
+
+    public class AdminLoginRequest
+    {
+        public string? Username { get; set; }
+        public string? Password { get; set; }
     }
 }

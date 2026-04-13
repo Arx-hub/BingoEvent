@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'services/bingo_api_service.dart';
 import 'services/welcome_page_api_service.dart';
 import 'services/event_api_service.dart';
 import 'services/question_package_api_service.dart';
 import 'services/feedback_api_service.dart';
+import 'services/auth_service.dart';
 import 'minigames/games_registry.dart';
 
 void main() {
@@ -87,7 +90,136 @@ class AdminApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const AdminHomePage(),
+      home: const AdminLoginPage(),
+    );
+  }
+}
+
+class AdminLoginPage extends StatefulWidget {
+  const AdminLoginPage({super.key});
+
+  @override
+  State<AdminLoginPage> createState() => _AdminLoginPageState();
+}
+
+class _AdminLoginPageState extends State<AdminLoginPage> {
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  String? _errorMessage;
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+
+    if (username.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Please enter both username and password.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final success = await AuthService.login(username, password);
+
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
+
+    if (success) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AdminHomePage()),
+      );
+    } else {
+      setState(() => _errorMessage = 'Invalid username or password.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(32),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(Icons.admin_panel_settings, size: 64, color: Colors.blue),
+                const SizedBox(height: 16),
+                const Text(
+                  'Admin Login',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 32),
+                TextField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Username',
+                    prefixIcon: Icon(Icons.person),
+                    border: OutlineInputBorder(),
+                  ),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: const Icon(Icons.lock),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _login(),
+                ),
+                const SizedBox(height: 8),
+                if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Login', style: TextStyle(fontSize: 16)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -367,6 +499,101 @@ class _EventsTabState extends State<EventsTab> {
     );
   }
 
+  String _getGuestUrl() {
+    if (kIsWeb) {
+      final adminUri = Uri.base;
+      final guestPort = adminUri.port == 8082 ? 8081 : 8081;
+      return '${adminUri.scheme}://${adminUri.host}:$guestPort';
+    }
+    return 'http://localhost:8081';
+  }
+
+  Widget _buildPublishedEventSection() {
+    final publishedEvent = events.where((e) => e['isPublished'] == true).firstOrNull;
+    if (publishedEvent == null) return const SizedBox.shrink();
+
+    final name = (publishedEvent['name'] ?? 'Unnamed').toString();
+    final publishedAt = publishedEvent['publishedAt']?.toString();
+    final guestUrl = _getGuestUrl();
+
+    String formattedDate = 'Unknown';
+    if (publishedAt != null) {
+      final date = DateTime.tryParse(publishedAt);
+      if (date != null) {
+        final local = date.toLocal();
+        formattedDate = '${local.day.toString().padLeft(2, '0')}.'
+            '${local.month.toString().padLeft(2, '0')}.'
+            '${local.year} '
+            '${local.hour.toString().padLeft(2, '0')}:'
+            '${local.minute.toString().padLeft(2, '0')}';
+      }
+    }
+
+    return Card(
+      margin: const EdgeInsets.all(16),
+      color: Colors.green.shade50,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.green.shade300, width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.cloud_done, color: Colors.green.shade700, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Currently Published',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              name,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Published: $formattedDate',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: QrImageView(
+                data: guestUrl,
+                version: QrVersions.auto,
+                size: 180,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SelectableText(
+              guestUrl,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.blue.shade700,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -392,6 +619,7 @@ class _EventsTabState extends State<EventsTab> {
     return Scaffold(
       body: Column(
         children: [
+          _buildPublishedEventSection(),
           Expanded(
             child: events.isEmpty
                 ? const Center(child: Text('No events created yet.'))

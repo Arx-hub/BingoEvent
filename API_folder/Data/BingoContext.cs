@@ -42,6 +42,7 @@ namespace BingoEvent.API.Data
         public string GameNames { get; set; } = "[]";
         public int? QuestionPackageId { get; set; }
         public bool IsPublished { get; set; } = false;
+        public string? PublishedAt { get; set; }
     }
 
     public class WelcomePage

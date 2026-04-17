@@ -31,12 +31,14 @@ class QuestionPackageAPI {
     required String name,
     required List<Map<String, dynamic>> questions,
     int? id,
+    bool isDefault = false,
   }) async {
     try {
       final url = Uri.parse('$baseUrl/question-packages');
       final Map<String, dynamic> bodyMap = {
         'name': name,
         'questions': questions,
+        'isDefault': isDefault,
       };
       if (id != null) {
         bodyMap['id'] = id;

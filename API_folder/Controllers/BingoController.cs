@@ -912,6 +912,8 @@ namespace BingoEvent.API.Controllers
                         return NotFound(new { Success = false, Message = "Question package not found." });
 
                     pkg.Name = request.Name;
+                    if (request.IsDefault.HasValue)
+                        pkg.IsDefault = request.IsDefault.Value;
                     pkg.UpdatedAt = DateTime.UtcNow;
                     _dbContext.QuestionPackages.Update(pkg);
 
@@ -924,7 +926,7 @@ namespace BingoEvent.API.Controllers
                     pkg = new QuestionPackage
                     {
                         Name = request.Name,
-                        IsDefault = false,
+                        IsDefault = request.IsDefault ?? false,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow,
                     };
@@ -1026,8 +1028,8 @@ namespace BingoEvent.API.Controllers
                 if (pkg == null)
                     return NotFound(new { Success = false, Message = "Question package not found." });
 
-                // Remove all questions in this package
-                var questions = _dbContext.Questions.Where(q => q.QuestionPackageId == id);
+                // Remove all questions in this package - materialize first
+                var questions = await _dbContext.Questions.Where(q => q.QuestionPackageId == id).ToListAsync();
                 _dbContext.Questions.RemoveRange(questions);
 
                 _dbContext.QuestionPackages.Remove(pkg);
@@ -1192,6 +1194,7 @@ namespace BingoEvent.API.Controllers
         public int? Id { get; set; }
         public string? Name { get; set; }
         public List<SaveQuestionRequest>? Questions { get; set; }
+        public bool? IsDefault { get; set; }
     }
 
     public class SaveQuestionRequest

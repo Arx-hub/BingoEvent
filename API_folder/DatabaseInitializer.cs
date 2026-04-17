@@ -165,6 +165,24 @@ public static class DatabaseInitializer
             cmd.ExecuteNonQuery();
         }
 
+        // AdminAccounts table
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS AdminAccounts (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Username TEXT NOT NULL UNIQUE,
+                    PasswordHash TEXT NOT NULL,
+                    IsMaster INTEGER NOT NULL DEFAULT 0,
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+                );";
+            cmd.ExecuteNonQuery();
+        }
+
+        // Seed master admin account if it doesn't exist
+        SeedMasterAccount(connection);
+
         // Seed default Question Packages
         SeedDefaultQuestionPackages(connection);
 
@@ -183,6 +201,51 @@ public static class DatabaseInitializer
 
         var packages = new[]
         {
+            new {
+                Name = "Elintarvike",
+                Questions = new[] {
+                    new { Q = "Mikä on proteiinin päätehtävä elimistössä?", A1 = "Kudosten rakentaminen ja korjaaminen", A2 = "Energian tuottaminen", A3 = "Vitamiinin varastointi", C = 1 },
+                    new { Q = "Kuinka monta kaloria on yhdessä grammassa hiilihydraattia?", A1 = "4 kaloria", A2 = "9 kaloria", A3 = "7 kaloria", C = 1 },
+                    new { Q = "Mikä on vitamiini D:n päätehtävä?", A1 = "Kalsiumin imeytyminen ja luuston terveys", A2 = "Veren hyytyminen", A3 = "Näkemisen parantaminen", C = 1 },
+                    new { Q = "Kuinka monta prosenttia ihmisen kehosta on vettä?", A1 = "Noin 60-70%", A2 = "Noin 30-40%", A3 = "Noin 80-90%", C = 1 },
+                    new { Q = "Kuinka monta kaloria on yhdessä grammassa rasvaa?", A1 = "9 kaloria", A2 = "4 kaloria", A3 = "7 kaloria", C = 1 },
+                    new { Q = "Mitä mineraalia tarvitaan raudan imeytymiseen?", A1 = "C-vitamiinia", A2 = "B12-vitamiinia", A3 = "D-vitamiinia", C = 1 },
+                    new { Q = "Kuinka paljon kuitua pitäisi syödä päivittäin?", A1 = "Noin 25-30 grammaa", A2 = "Noin 5-10 grammaa", A3 = "Noin 50-60 grammaa", C = 1 },
+                    new { Q = "Mitä rasvahappoja kutsutaan välttämättömiksi?", A1 = "Omega-3 ja omega-6 rasvahappoja", A2 = "Saturoidut rasvahapot", A3 = "Trans-rasvahapot", C = 1 },
+                    new { Q = "Mikä elintarvike on runsas raudassa?", A1 = "Punaiset lihavalmisteet ja maksantuotteet", A2 = "Maitotuotteet", A3 = "Viljatuotteet", C = 1 },
+                    new { Q = "Mitä aminohappoja kutsutaan välttämättömiksi?", A1 = "Niitä, joita keho ei voi valmistaa itse", A2 = "Kaikki aminohapot", A3 = "Vain kasveista saatavat aminohapot", C = 1 },
+                }
+            },
+            new {
+                Name = "TuVa",
+                Questions = new[] {
+                    new { Q = "Mikä on betonin pääkomponentti?", A1 = "Sementti, sora ja vesi", A2 = "Vain sementti", A3 = "Teräs ja sora", C = 1 },
+                    new { Q = "Mitä tarkoittaa BIM-malli?", A1 = "Building Information Modeling", A2 = "Basic Industrial Model", A3 = "Broad Infrastructure Management", C = 1 },
+                    new { Q = "Kuinka monta prosenttia betonia kierrätetään Suomessa?", A1 = "Noin 90%", A2 = "Noin 50%", A3 = "Noin 20%", C = 1 },
+                    new { Q = "Mikä on perustamistapojen paras valinta pehmeällä maalla?", A1 = "Paaluperustus", A2 = "Teräsperustus", A3 = "Pintaperustus", C = 1 },
+                    new { Q = "Kuinka kauan harkkobetoni kuivuu?", A1 = "Noin 7-14 päivää", A2 = "Noin 1-2 päivää", A3 = "Noin 30 päivää", C = 1 },
+                    new { Q = "Mitä merkitsee CE-merkintä rakennustuotteissa?", A1 = "EU-vaatimustenmukaisuusdeklaraatio", A2 = "Certified European", A3 = "Construction Efficient", C = 1 },
+                    new { Q = "Mikä on rakentamisen turvallisuusjohtajan päätehtävä?", A1 = "Valvoa työturvallisuutta rakentamisella", A2 = "Suunnitella rakennuksia", A3 = "Hallita budjetin", C = 1 },
+                    new { Q = "Kuinka pitkä on standardi teräspalkin pituus?", A1 = "Vaihtelee, yleensä 6-12 metriä", A2 = "Aina 5 metriä", A3 = "Aina 20 metriä", C = 1 },
+                    new { Q = "Mikä on logistiikan päätehtävä?", A1 = "Kuljetus, varastointi ja jakelu", A2 = "Tuotteiden valmistus", A3 = "Markkinointi", C = 1 },
+                    new { Q = "Kuinka paljon kuorma-auton maksimipainoluokka on?", A1 = "Noin 11,5 tonnia", A2 = "Noin 5 tonnia", A3 = "Noin 20 tonnia", C = 1 },
+                }
+            },
+            new {
+                Name = "Matkailu",
+                Questions = new[] {
+                    new { Q = "Mikä on matkailun merkitys Suomen taloudelle?", A1 = "Noin 2-3% BKT:stä ja työpaikat", A2 = "Noin 10% BKT:stä", A3 = "Alle 1% BKT:stä", C = 1 },
+                    new { Q = "Mitä tarkoittaa kestävä matkailu?", A1 = "Vastuullinen matkailu, joka ei vahingoita ympäristöä", A2 = "Kallis matkailu", A3 = "Pitkäkestoinen matkailu", C = 1 },
+                    new { Q = "Mikä on Suomen suosituin matkailualue?", A1 = "Lappi ja pohjoisen luonto", A2 = "Etelä-Suomi", A3 = "Keskustan kaupungit", C = 1 },
+                    new { Q = "Mitä tarkoittaa UNWTO?", A1 = "United Nations World Tourism Organization", A2 = "Universal World Tour Organization", A3 = "Union of World Tourism Offices", C = 1 },
+                    new { Q = "Kuinka monta maata kuuluu Euroopan Unioniin?", A1 = "27 maata", A2 = "25 maata", A3 = "30 maata", C = 1 },
+                    new { Q = "Mitä on kulttuurimatkailu?", A1 = "Matkailu, joka keskittyy kulttuuriin ja historiaan", A2 = "Matkailu kaupungeissa", A3 = "Matkailu museoissa", C = 1 },
+                    new { Q = "Kuinka monta UNESCO maailmanperintökohdetta Suomella on?", A1 = "7 kohdetta", A2 = "10 kohdetta", A3 = "5 kohdetta", C = 1 },
+                    new { Q = "Kuinka monta kansainvälistä matkailijaa Suomeen tulee vuosittain?", A1 = "Noin 2-3 miljoonaa", A2 = "Noin 10 miljoonaa", A3 = "Noin 500 000", C = 1 },
+                    new { Q = "Mikä on matkailu- ja ravintola-alan pääorganisaatio Suomessa?", A1 = "Matkailu- ja ravintola-alan liitto", A2 = "Suomen matkailu ry", A3 = "Visit Finland", C = 1 },
+                    new { Q = "Mitkä ovat Suomen suurimmat matkailukohteet?", A1 = "Pohjolan valot, luonto ja kulttuuriperintö", A2 = "Teollisuus ja kauppa", A3 = "Urheilu ja tapahtumat", C = 1 },
+                }
+            },
             new {
                 Name = "ICT - Tieto- ja viestintätekniikka",
                 Questions = new[] {
@@ -294,5 +357,32 @@ public static class DatabaseInitializer
         using var alterCmd = connection.CreateCommand();
         alterCmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
         alterCmd.ExecuteNonQuery();
+    }
+
+    private static void SeedMasterAccount(SqliteConnection connection)
+    {
+        using (var checkCmd = connection.CreateCommand())
+        {
+            checkCmd.CommandText = "SELECT COUNT(*) FROM AdminAccounts WHERE IsMaster = 1;";
+            var count = Convert.ToInt64(checkCmd.ExecuteScalar());
+            if (count > 0) return; // Master account already exists
+        }
+
+        var passwordHash = HashPassword("admin123");
+        
+        using (var insertCmd = connection.CreateCommand())
+        {
+            insertCmd.CommandText = @"
+                INSERT INTO AdminAccounts (Username, PasswordHash, IsMaster, CreatedAt, UpdatedAt) 
+                VALUES (@username, @passwordHash, 1, datetime('now'), datetime('now'));";
+            insertCmd.Parameters.AddWithValue("@username", "admin");
+            insertCmd.Parameters.AddWithValue("@passwordHash", passwordHash);
+            insertCmd.ExecuteNonQuery();
+        }
+    }
+
+    private static string HashPassword(string password)
+    {
+        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password));
     }
 }

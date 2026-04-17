@@ -16,6 +16,7 @@ namespace BingoEvent.API.Data
         public DbSet<QuestionPackage> QuestionPackages { get; set; }
         public DbSet<Question> Questions { get; set; }
         public DbSet<Feedback> Feedbacks { get; set; }
+        public DbSet<AdminAccount> AdminAccounts { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -29,6 +30,26 @@ namespace BingoEvent.API.Data
             modelBuilder.Entity<Game>().HasData(
                 new Game { Id = 1, Name = "Default Game" }
             );
+
+            // Seed master admin account (username: admin, password: admin123)
+            // Note: EF Core seeding requires constant values, so datetime is set by DB
+            modelBuilder.Entity<AdminAccount>().HasData(
+                new AdminAccount 
+                { 
+                    Id = 1, 
+                    Username = "admin", 
+                    PasswordHash = HashPassword("admin123"),
+                    IsMaster = true,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0),
+                    UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0)
+                }
+            );
+        }
+
+        // Simple password hashing function (consider using bcrypt in production)
+        private static string HashPassword(string password)
+        {
+            return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password));
         }
     }
 
@@ -102,5 +123,15 @@ namespace BingoEvent.API.Data
         public int Rating { get; set; }
         public string EventPackageName { get; set; } = "";
         public DateTime CreatedAt { get; set; }
+    }
+
+    public class AdminAccount
+    {
+        public int Id { get; set; }
+        public string Username { get; set; } = "";
+        public string PasswordHash { get; set; } = "";
+        public bool IsMaster { get; set; } = false;
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
     }
 }

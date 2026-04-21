@@ -1028,10 +1028,6 @@ namespace BingoEvent.API.Controllers
                 if (pkg == null)
                     return NotFound(new { Success = false, Message = "Question package not found." });
 
-                // Remove all questions in this package - materialize first
-                var questions = await _dbContext.Questions.Where(q => q.QuestionPackageId == id).ToListAsync();
-                _dbContext.Questions.RemoveRange(questions);
-
                 _dbContext.QuestionPackages.Remove(pkg);
                 await _dbContext.SaveChangesAsync();
 

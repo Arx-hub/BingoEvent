@@ -4,7 +4,7 @@ import 'dart:convert';
 class ApiService {
   // Use relative URL - nginx will proxy /api/ to internal bingo-api:8080
   // Relative URLs work for any deployment (local Docker, remote, Portainer)
-  static String baseUrl = 'http://localhost:5000/api/bingo';
+  static String baseUrl = '/api/bingo';
 
   /// Sets the base URL for the API service (useful for switching environments)
   static void setBaseUrl(String url) {

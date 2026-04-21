@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class FeedbackAPI {
-  static const String baseUrl = 'http://localhost:5000/api/bingo';
+  static const String baseUrl = '/api/bingo';
 
   static Future<bool> submitFeedback(int rating, String eventPackageName) async {
     try {

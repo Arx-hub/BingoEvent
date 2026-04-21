@@ -9,8 +9,11 @@ import 'services/question_package_api_service.dart';
 import 'services/feedback_api_service.dart';
 import 'services/auth_api_service.dart';
 import 'minigames/games_registry.dart';
+import 'config/api_config.dart';
 
 void main() {
+  // Initialize API configuration before running the app
+  ApiConfig.initialize();
   runApp(const AdminApp());
 }
 

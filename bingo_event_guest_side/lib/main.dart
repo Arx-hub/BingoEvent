@@ -4,8 +4,11 @@ import 'minigames/games_registry.dart';
 import 'minigames/game_selection_page.dart';
 import 'services/event_api_service.dart';
 import 'services/feedback_api_service.dart';
+import 'config/api_config.dart';
 
 void main() {
+  // Initialize API configuration before running the app
+  ApiConfig.initialize();
   runApp(const GuestApp());
 }
 

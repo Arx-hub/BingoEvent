@@ -2,8 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class AuthAPI {
-  // Use relative URL - nginx will proxy /api/auth/* to internal bingo-api:8080
-  // This works for browsers (they request from localhost:8082) and nginx proxies to the API
+  // Auth uses /api/auth endpoint
   static const String baseUrl = '/api/auth';
 
   /// Login with username and password

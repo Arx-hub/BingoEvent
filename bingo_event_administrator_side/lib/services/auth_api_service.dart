@@ -3,7 +3,7 @@ import 'dart:convert';
 
 class AuthAPI {
   // Auth uses /api/auth endpoint
-  static const String baseUrl = '/api/auth';
+  static const String baseUrl = '/api/Auth';
 
   /// Login with username and password
   static Future<Map<String, dynamic>> login(String username, String password) async {

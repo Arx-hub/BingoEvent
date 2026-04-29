@@ -2444,35 +2444,37 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
       appBar: AppBar(
         title: Text(widget.board == null ? 'Create New Bingo Board' : 'Edit Bingo Board'),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              SizedBox(
-                width: 350,
-                child: TextField(
-                  controller: boardNameController,
-                  enabled: !isSaving,
-                  decoration: const InputDecoration(
-                    labelText: 'Board Name',
-                    isDense: false,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      body: SingleChildScrollView(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 350,
+                  child: TextField(
+                    controller: boardNameController,
+                    enabled: !isSaving,
+                    decoration: const InputDecoration(
+                      labelText: 'Board Name',
+                      isDense: false,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                    style: const TextStyle(fontSize: 14),
                   ),
-                  style: const TextStyle(fontSize: 14),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: SizedBox(
-                  width: 900,
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: min(MediaQuery.of(context).size.width * 0.95, 900),
                   child: GridView.builder(
+                    shrinkWrap: true,
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 5, // 5x5 grid
                       crossAxisSpacing: 6.0,
                       mainAxisSpacing: 6.0,
                     ),
-                    physics: const NeverScrollableScrollPhysics(),
+                    physics: const NeverScrollableScrollPhysics(), // Keeps it integrated with page scroll
                     itemCount: 25,
                     itemBuilder: (context, index) {
                       return Container(
@@ -2501,30 +2503,36 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
                     },
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: isSaving ? null : _showPreview,
-                    icon: const Icon(Icons.preview),
-                    label: const Text('Preview'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: isSaving ? null : _saveBoard,
-                    child: isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Save'),
-                  ),
-                ],
-              ),
-            ],
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: isSaving ? null : _showPreview,
+                      icon: const Icon(Icons.preview),
+                      label: const Text('Preview'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: isSaving ? null : _saveBoard,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      child: isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Save Board'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32), // Bottom padding for scrolling
+              ],
+            ),
           ),
         ),
       ),
@@ -2565,72 +2573,78 @@ class _BingoBoardPreviewState extends State<BingoBoardPreview> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                widget.board.name.isEmpty ? 'Unnamed Board' : widget.board.name,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              // To adjust preview size, change width and height below (e.g., 650x650, 700x700, etc.)
-              SizedBox(
-                width: 900,
-                height: 900,
-                child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 5, // 5x5 grid
-                    crossAxisSpacing: 8.0,
-                    mainAxisSpacing: 8.0,
-                  ),
-                  itemCount: 25,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemBuilder: (context, index) {
-                    final text = widget.boxControllers[index].text;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          selectedBoxes[index] = !selectedBoxes[index];
-                        });
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: selectedBoxes[index] ? Colors.green : Colors.white,
-                          border: Border.all(
-                            color: Colors.black,
-                            width: 2,
+      body: SingleChildScrollView(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  widget.board.name.isEmpty ? 'Unnamed Board' : widget.board.name,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: min(MediaQuery.of(context).size.width * 0.95, 700),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 5, // 5x5 grid
+                      crossAxisSpacing: 8.0,
+                      mainAxisSpacing: 8.0,
+                    ),
+                    itemCount: 25,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemBuilder: (context, index) {
+                      final text = widget.boxControllers[index].text;
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedBoxes[index] = !selectedBoxes[index];
+                          });
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: selectedBoxes[index] ? Colors.green : Colors.white,
+                            border: Border.all(
+                              color: Colors.black,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(6.0),
                           ),
-                          borderRadius: BorderRadius.circular(6.0),
-                        ),
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(4.0),
-                            child: Text(
-                              text.isEmpty ? 'Box ${index + 1}' : text,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w500),
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(4.0),
+                              child: Text(
+                                text.isEmpty ? 'Box ${index + 1}' : text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                '(Click boxes to test)',
-                style: TextStyle(fontSize: 11, color: Colors.grey),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
+                const SizedBox(height: 24),
+                const Text(
+                  '(Click boxes to test)',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  ),
+                  child: const Text('Close'),
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConfig {
-  static late String _baseUrl;
+  static late String _rootUrl;
 
   /// Initialize API configuration based on the environment
   static void initialize() {
@@ -10,9 +10,9 @@ class ApiConfig {
       _detectWebEnvironment();
     } else {
       // For mobile/desktop, use localhost
-      _baseUrl = 'http://localhost:5000/api/bingo';
+      _rootUrl = 'http://localhost:5000/api';
     }
-    print('API initialized with base URL: $_baseUrl');
+    print('API initialized with root URL: $_rootUrl');
   }
 
   /// Detects the current web environment and sets API URL accordingly
@@ -23,35 +23,38 @@ class ApiConfig {
       final String windowLocation = _getWindowLocation();
       
       if (windowLocation.contains('localhost') || windowLocation.contains('127.0.0.1')) {
-        // Local development
-        _baseUrl = 'http://localhost:5000/api/bingo';
+        // Local development - hit the C# API on port 5000
+        _rootUrl = 'http://localhost:5000/api';
       } else {
         // Server deployment - use relative URL
         // This assumes nginx/IIS proxies /api/* to the backend
-        _baseUrl = '/api/bingo';
+        _rootUrl = '/api';
       }
     } else {
-      _baseUrl = '/api/bingo';
+      _rootUrl = '/api';
     }
   }
 
   /// Get the current window location (web only)
   static String _getWindowLocation() {
     try {
-      // This is a placeholder - in real Flutter web, you'd use:
-      // html.window.location.href
-      return 'http://localhost:3000';
+      // In real Flutter web, this would use html.window.location.href
+      // Since we don't want to import 'dart:html' everywhere, we use a helper
+      return Uri.base.toString();
     } catch (e) {
       return 'http://localhost:3000';
     }
   }
 
-  /// Get the current base URL
-  static String get baseUrl => _baseUrl;
+  /// Get the root API URL
+  static String get rootUrl => _rootUrl;
 
-  /// Set a custom base URL (useful for testing)
-  static void setBaseUrl(String url) {
-    _baseUrl = url;
-    print('API base URL manually set to: $_baseUrl');
+  /// Get the base URL for the bingo controller
+  static String get baseUrl => '$_rootUrl/bingo';
+
+  /// Set a custom root URL (useful for testing)
+  static void setRootUrl(String url) {
+    _rootUrl = url;
+    print('API root URL manually set to: $_rootUrl');
   }
 }

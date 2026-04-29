@@ -8,7 +8,7 @@ class ApiService {
 
   /// Sets the base URL for the API service (useful for switching environments)
   static void setBaseUrl(String url) {
-    ApiConfig.setBaseUrl(url);
+    ApiConfig.setRootUrl(url);
   }
 
   /// Creates a new bingo board and saves it to the database

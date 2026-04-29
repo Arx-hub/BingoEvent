@@ -1,9 +1,10 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_config.dart';
 
 class AuthAPI {
-  // Auth uses /api/auth endpoint
-  static const String baseUrl = '/api/Auth';
+  // Auth uses /api/Auth endpoint
+  static String get baseUrl => '${ApiConfig.rootUrl}/Auth';
 
   /// Login with username and password
   static Future<Map<String, dynamic>> login(String username, String password) async {

@@ -3,6 +3,7 @@ import 'dart:math';
 
 class MinesweeperGamePage extends StatefulWidget {
   final VoidCallback? onWin;
+  final VoidCallback? onLose;
   final VoidCallback? onSkip;
   final int gridSize;
   final int mineCount;
@@ -10,6 +11,7 @@ class MinesweeperGamePage extends StatefulWidget {
   const MinesweeperGamePage({
     super.key,
     this.onWin,
+    this.onLose,
     this.onSkip,
     this.gridSize = 5,
     this.mineCount = 3,
@@ -121,51 +123,17 @@ class _MinesweeperGamePageState extends State<MinesweeperGamePage> {
       }
     });
 
-    // Show game over dialog if player hit a mine
+    // Call onLose if player hit a mine
     if (_gameOver) {
       Future.delayed(const Duration(milliseconds: 300), () {
-        _showGameOverDialog();
+        if (widget.onLose != null) {
+          widget.onLose!();
+        }
       });
     }
   }
 
-  void _showGameOverDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('You Lost! 💣'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(height: 16),
-            Text(
-              'You hit a bomb!',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'You get no free pick on the bingo board.',
-              style: TextStyle(fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              widget.onSkip?.call(); // Go back to bingo board
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-            ),
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Remove _showGameOverDialog entirely as we'll use the new result page
 
   void _toggleFlag(int row, int col) {
     if (_gameOver || _won || _revealed[row][col]) {
@@ -184,81 +152,82 @@ class _MinesweeperGamePageState extends State<MinesweeperGamePage> {
         title: const Text('Minesweeper'),
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12.0),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 450),
+          child: SingleChildScrollView(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Safe squares: $_revealedSafeSquares / $_totalSafeSquares',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Safe squares: $_revealedSafeSquares / $_totalSafeSquares',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18),
+                      ),
+                      const SizedBox(height: 4),
+                      if (_won)
+                        const Text(
+                          '🎉 YOU WON!',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 6),
-                if (_won)
-                  const Text(
-                    '🎉 YOU WON!',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: AspectRatio(
+                    aspectRatio: 1.0,
+                    child: GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 5,
+                        crossAxisSpacing: 6.0,
+                        mainAxisSpacing: 6.0,
+                      ),
+                      itemCount: widget.gridSize * widget.gridSize,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemBuilder: (context, index) {
+                        final row = index ~/ widget.gridSize;
+                        final col = index % widget.gridSize;
+                        return MinesweeperSquare(
+                          isMine: _mines[row][col],
+                          isRevealed: _revealed[row][col],
+                          isFlagged: _flagged[row][col],
+                          adjacentMines: _countAdjacentMines(row, col),
+                          onTap: () => _revealSquare(row, col),
+                          onLongPress: () => _toggleFlag(row, col),
+                        );
+                      },
                     ),
                   ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  crossAxisSpacing: 6.0,
-                  mainAxisSpacing: 6.0,
                 ),
-                itemCount: widget.gridSize * widget.gridSize,
-                physics: const NeverScrollableScrollPhysics(),
-                itemBuilder: (context, index) {
-                  final row = index ~/ widget.gridSize;
-                  final col = index % widget.gridSize;
-                  return MinesweeperSquare(
-                    isMine: _mines[row][col],
-                    isRevealed: _revealed[row][col],
-                    isFlagged: _flagged[row][col],
-                    adjacentMines: _countAdjacentMines(row, col),
-                    onTap: () => _revealSquare(row, col),
-                    onLongPress: () => _toggleFlag(row, col),
-                  );
-                },
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: _gameOver || _won
-                      ? null
-                      : () {
-                          setState(() {
-                            _initializeGame();
-                          });
-                        },
-                  child: const Text('Restart'),
-                ),
-                ElevatedButton(
-                  onPressed: _gameOver || _won ? null : widget.onSkip,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: ElevatedButton(
+                    onPressed: _gameOver || _won
+                        ? null
+                        : () {
+                            setState(() {
+                              _initializeGame();
+                            });
+                          },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    child: const Text('Restart'),
                   ),
-                  child: const Text('Skip'),
                 ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

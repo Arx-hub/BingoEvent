@@ -11,6 +11,7 @@ class GameConfig {
   final Widget Function(
     BuildContext context,
     VoidCallback? onWin,
+    VoidCallback? onLose,
     VoidCallback? onSkip,
   ) gamePageBuilder;
 
@@ -28,8 +29,9 @@ class GamesRegistry {
       id: 'memory_game',
       name: 'Memory Game',
       description: 'Match pairs of cards by memory',
-      gamePageBuilder: (context, onWin, onSkip) => MemoryGamePage(
+      gamePageBuilder: (context, onWin, onLose, onSkip) => MemoryGamePage(
         onWin: onWin,
+        onLose: onLose,
         onSkip: onSkip,
       ),
     ),
@@ -37,8 +39,9 @@ class GamesRegistry {
       id: 'minesweeper_game',
       name: 'Minesweeper',
       description: 'Reveal safe squares and avoid mines',
-      gamePageBuilder: (context, onWin, onSkip) => MinesweeperGamePage(
+      gamePageBuilder: (context, onWin, onLose, onSkip) => MinesweeperGamePage(
         onWin: onWin,
+        onLose: onLose,
         onSkip: onSkip,
       ),
     ),
@@ -46,8 +49,9 @@ class GamesRegistry {
       id: 'spin_wheel_game',
       name: 'Spin the Wheel',
       description: 'Guess which color the wheel will land on',
-      gamePageBuilder: (context, onWin, onSkip) => SpinWheelGamePage(
+      gamePageBuilder: (context, onWin, onLose, onSkip) => SpinWheelGamePage(
         onWin: onWin,
+        onLose: onLose,
         onSkip: onSkip,
       ),
     ),
@@ -55,8 +59,9 @@ class GamesRegistry {
       id: 'bottle_order_game',
       name: 'Bottle Order',
       description: 'Match the hidden bottles to their correct positions',
-      gamePageBuilder: (context, onWin, onSkip) => BottleOrderGamePage(
+      gamePageBuilder: (context, onWin, onLose, onSkip) => BottleOrderGamePage(
         onWin: onWin,
+        onLose: onLose,
         onSkip: onSkip,
       ),
     ),

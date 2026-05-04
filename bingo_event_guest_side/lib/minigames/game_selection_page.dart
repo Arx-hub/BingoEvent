@@ -13,12 +13,17 @@ class GameSelectionPage extends StatelessWidget {
         builder: (context) => game.gamePageBuilder(
           context,
           () {
-            // On win: Pop game page and show win screen
+            // On win
             Navigator.pop(context);
-            _showGameWinScreen(context, game.name);
+            _showGameResultScreen(context, game, true);
           },
           () {
-            // On skip: Pop back to game selection
+            // On lose
+            Navigator.pop(context);
+            _showGameResultScreen(context, game, false);
+          },
+          () {
+            // On skip
             Navigator.pop(context);
           },
         ),
@@ -26,14 +31,19 @@ class GameSelectionPage extends StatelessWidget {
     );
   }
 
-  void _showGameWinScreen(BuildContext context, String gameName) {
+  void _showGameResultScreen(BuildContext context, GameConfig game, bool isWin) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => GameWinPage(
-          gameName: gameName,
-          onContinue: () {
-            Navigator.pop(context);
+        builder: (context) => GameResultPage(
+          game: game,
+          isWin: isWin,
+          onTryAgain: () {
+            Navigator.pop(context); // Pop result page
+            _startGame(context, game); // Restart game
+          },
+          onGoBack: () {
+            Navigator.pop(context); // Pop result page
           },
         ),
       ),
@@ -45,79 +55,118 @@ class GameSelectionPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Select a Game'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: ListView.builder(
-          itemCount: GamesRegistry.availableGames.length,
-          itemBuilder: (context, index) {
-            final game = GamesRegistry.availableGames[index];
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 6.0),
-              child: ListTile(
-                title: Text(game.name, style: const TextStyle(fontSize: 14)),
-                subtitle: Text(game.description, style: const TextStyle(fontSize: 12)),
-                trailing: ElevatedButton(
-                  onPressed: () => _startGame(context, game),
-                  child: const Text('Play'),
-                ),
-              ),
-            );
-          },
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: ListView.builder(
+              itemCount: GamesRegistry.availableGames.length,
+              itemBuilder: (context, index) {
+                final game = GamesRegistry.availableGames[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    title: Text(game.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    subtitle: Text(game.description, style: const TextStyle(fontSize: 14)),
+                    trailing: ElevatedButton(
+                      onPressed: () => _startGame(context, game),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      child: const Text('Play'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class GameWinPage extends StatelessWidget {
-  final String gameName;
-  final VoidCallback onContinue;
+class GameResultPage extends StatelessWidget {
+  final GameConfig game;
+  final bool isWin;
+  final VoidCallback onTryAgain;
+  final VoidCallback onGoBack;
 
-  const GameWinPage({
+  const GameResultPage({
     super.key,
-    required this.gameName,
-    required this.onContinue,
+    required this.game,
+    required this.isWin,
+    required this.onTryAgain,
+    required this.onGoBack,
   });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Congratulations!'),
+        title: Text(isWin ? 'Congratulations!' : 'Game Over'),
         elevation: 0,
+        automaticallyImplyLeading: false,
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              '🎉',
-              style: TextStyle(fontSize: 60),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'You Won!',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              gameName,
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: onContinue,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isWin ? '🎉' : '😢',
+                style: const TextStyle(fontSize: 80),
               ),
-              child: const Text('Continue'),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                isWin ? 'You Won!' : 'You Lost!',
+                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                game.name,
+                style: const TextStyle(fontSize: 18, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: onGoBack,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      backgroundColor: Colors.grey[200],
+                      foregroundColor: Colors.black,
+                      textStyle: const TextStyle(fontSize: 16),
+                    ),
+                    child: const Text('Go Back'),
+                  ),
+                  const SizedBox(width: 24),
+                  ElevatedButton(
+                    onPressed: onTryAgain,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    child: const Text('Try Again'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

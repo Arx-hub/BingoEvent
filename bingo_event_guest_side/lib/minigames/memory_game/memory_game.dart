@@ -3,12 +3,14 @@ import 'dart:math';
 
 class MemoryGamePage extends StatefulWidget {
   final VoidCallback? onWin;
+  final VoidCallback? onLose;
   final VoidCallback? onSkip;
   final List<String> cardImages;
 
   const MemoryGamePage({
     super.key,
     this.onWin,
+    this.onLose,
     this.onSkip,
     this.cardImages = const [
       '💻', '🖥️', '🩺', '🧁', '📊',
@@ -109,63 +111,64 @@ class _MemoryGamePageState extends State<MemoryGamePage> {
         title: const Text('Memory Game'),
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10.0),
-            child: Text(
-              'Pairs found: $_matchedPairs / ${_cards.length ~/ 2}',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  crossAxisSpacing: 6.0,
-                  mainAxisSpacing: 6.0,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12.0),
+                child: Text(
+                  'Pairs found: $_matchedPairs / ${_cards.length ~/ 2}',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 18),
                 ),
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _cards.length,
-                itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () => _onCardTapped(index),
-                    child: MemoryCard(
-                      isFlipped: _isFlipped[index],
-                      isMatched: _isMatched[index],
-                      cardContent: _cards[index],
-                    ),
-                  );
-                },
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _initializeGame();
-                    });
-                  },
-                  child: const Text('Restart'),
-                ),
-                ElevatedButton(
-                  onPressed: widget.onSkip,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 5,
+                      crossAxisSpacing: 10.0,
+                      mainAxisSpacing: 10.0,
+                    ),
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _cards.length,
+                    itemBuilder: (context, index) {
+                      return GestureDetector(
+                        onTap: () => _onCardTapped(index),
+                        child: MemoryCard(
+                          isFlipped: _isFlipped[index],
+                          isMatched: _isMatched[index],
+                          cardContent: _cards[index],
+                        ),
+                      );
+                    },
                   ),
-                  child: const Text('Skip'),
                 ),
-              ],
-            ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _initializeGame();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      ),
+                      child: const Text('Restart'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

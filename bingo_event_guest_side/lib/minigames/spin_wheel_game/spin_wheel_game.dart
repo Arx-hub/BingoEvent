@@ -4,11 +4,13 @@ import 'dart:async';
 
 class SpinWheelGamePage extends StatefulWidget {
   final VoidCallback? onWin;
+  final VoidCallback? onLose;
   final VoidCallback? onSkip;
 
   const SpinWheelGamePage({
     super.key,
     this.onWin,
+    this.onLose,
     this.onSkip,
   });
 
@@ -78,12 +80,9 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
 
     _spinController.forward(from: 0).then((_) {
       // Show result after spin completes
-      Future.delayed(const Duration(milliseconds: 300), () {
+      Future.delayed(const Duration(milliseconds: 600), () {
         if (mounted) {
-          setState(() {
-            _showResult = true;
-            _isOverlayVisible = true;
-          });
+          _continueAfterResult();
         }
       });
     });
@@ -95,7 +94,7 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
     if (won) {
       widget.onWin?.call();
     } else {
-      widget.onSkip?.call();
+      widget.onLose?.call();
     }
   }
 
@@ -105,239 +104,142 @@ class _SpinWheelGamePageState extends State<SpinWheelGamePage>
       appBar: AppBar(
         title: const Text('Spin the Wheel'),
         leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: _isOverlayVisible ? null : widget.onSkip,
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Stack(
-        children: [
-          // Main game content
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 20),
-                  
-                  // Title
-                  const Text(
-                    'Make a Guess!',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  const Text(
-                    'Which color will the arrow land on?',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Color selection buttons
-                  if (!_hasSpun)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildColorButton('Pink', const Color(0xFFFF9EB3), 0),
-                        const SizedBox(width: 16),
-                        _buildColorButton('Navy', const Color(0xFF3B4B6B), 1),
-                      ],
-                    ),
-
-                  const SizedBox(height: 20),
-
-                  // Wheel display
-                  Center(
-                    child: Column(
-                      children: [
-                        // Arrow pointing down
-                        const Icon(
-                          Icons.arrow_drop_down,
-                          size: 32,
-                          color: Colors.black87,
-                        ),
-                        
-                        // Wheel - Responsive size for mobile
-                        SizedBox(
-                          width: 220,
-                          height: 220,
-                          child: AnimatedBuilder(
-                            animation: _spinAnimation,
-                            builder: (context, child) {
-                              return Transform.rotate(
-                                angle: _spinAnimation.value,
-                                child: CustomPaint(
-                                  painter: WheelPainter(),
-                                  size: const Size(220, 220),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Display of player's guess
-                  if (_playerGuess != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Stack(
+            children: [
+              // Main game content
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 5),
+                    
+                    // Title
+                    const Text(
+                      'Make a Guess!',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'You guessed: ${_playerGuess![0].toUpperCase()}${_playerGuess!.substring(1)}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      textAlign: TextAlign.center,
                     ),
-
-                  const SizedBox(height: 16),
-
-                  // Spin button
-                  ElevatedButton.icon(
-                    onPressed: _hasSpun ? null : _spinWheel,
-                    icon: const Icon(Icons.casino, size: 24),
-                    label: const Text(
-                      'SPIN THE WHEEL',
+                    const SizedBox(height: 4),
+                    
+                    const Text(
+                      'Which color will the arrow land on?',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white,
+                        color: Colors.grey,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 15),
+
+                    // Color selection buttons
+                    if (!_hasSpun)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildColorButton('Pink', const Color(0xFFFF9EB3), 0),
+                          const SizedBox(width: 16),
+                          _buildColorButton('Navy', const Color(0xFF3B4B6B), 1),
+                        ],
+                      ),
+
+                    const SizedBox(height: 15),
+
+                    // Wheel display
+                    Center(
+                      child: Column(
+                        children: [
+                          // Arrow pointing down
+                          const Icon(
+                            Icons.arrow_drop_down,
+                            size: 32,
+                            color: Colors.black87,
+                          ),
+                          
+                          // Wheel - More compact to prevent overflow
+                          SizedBox(
+                            width: 220,
+                            height: 220,
+                            child: AnimatedBuilder(
+                              animation: _spinAnimation,
+                              builder: (context, child) {
+                                return Transform.rotate(
+                                  angle: _spinAnimation.value,
+                                  child: CustomPaint(
+                                    painter: WheelPainter(),
+                                    size: const Size(220, 220),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                      backgroundColor:
-                          _hasSpun ? Colors.grey : Colors.deepPurple,
-                      disabledBackgroundColor: Colors.grey,
-                    ),
-                  ),
 
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 15),
 
-                  // Skip button
-                  ElevatedButton(
-                    onPressed: widget.onSkip,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                    ),
-                    child: const Text('Skip Game'),
-                  ),
-
-                  const SizedBox(height: 12),
-                ],
-              ),
-            ),
-          ),
-
-          // Result overlay
-          if (_showResult)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.5),
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(30),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Result emoji
-                        Text(
-                          _playerGuess == _wheelResult ? '🎉' : '😢',
-                          style: const TextStyle(fontSize: 80),
+                    // Display of player's guess
+                    if (_playerGuess != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                        const SizedBox(height: 20),
-
-                        // Result text
-                        Text(
-                          _playerGuess == _wheelResult ? 'You Won!' : 'You Lost!',
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'You guessed: ${_playerGuess![0].toUpperCase()}${_playerGuess!.substring(1)}',
                           style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                      ),
 
-                        // Details
-                        Text(
-                          'The wheel landed on ${_wheelResult![0].toUpperCase()}${_wheelResult!.substring(1)}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 30),
+                    const SizedBox(height: 16),
 
-                        // Buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            ElevatedButton(
-                              onPressed: _continueAfterResult,
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 30,
-                                  vertical: 16,
-                                ),
-                                backgroundColor: Colors.deepPurple,
-                              ),
-                              child: const Text(
-                                'Continue',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: widget.onSkip,
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 30,
-                                  vertical: 16,
-                                ),
-                                backgroundColor: Colors.red,
-                              ),
-                              child: const Text(
-                                'Skip Game',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
+                    // Spin button
+                    ElevatedButton.icon(
+                      onPressed: _hasSpun ? null : _spinWheel,
+                      icon: const Icon(Icons.casino, size: 22),
+                      label: const Text(
+                        'SPIN THE WHEEL',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
                         ),
-                      ],
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        backgroundColor:
+                            _hasSpun ? Colors.grey : Colors.deepPurple,
+                        disabledBackgroundColor: Colors.grey,
+                      ),
                     ),
-                  ),
+
+                    const SizedBox(height: 10),
+                  ],
                 ),
               ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

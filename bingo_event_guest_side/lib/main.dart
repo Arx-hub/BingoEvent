@@ -27,138 +27,58 @@ class GuestApp extends StatelessWidget {
   }
 }
 
-class WelcomePage extends StatefulWidget {
+class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
-
-  @override
-  State<WelcomePage> createState() => _WelcomePageState();
-}
-
-class _WelcomePageState extends State<WelcomePage> {
-  bool _isLoading = true;
-  String? _errorMessage;
-  String _title = 'Welcome to the Bingo Game!';
-  String _subtitle = '';
-  String _eventName = '';
-  List<String> _boxes = [];
-  List<String> _gameNames = [];
-  List<Map<String, dynamic>>? _questions;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPublishedEvent();
-  }
-
-  Future<void> _loadPublishedEvent() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    final data = await EventAPI.getPublishedEvent();
-
-    if (!mounted) return;
-
-    if (data == null) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'No event is currently published.';
-      });
-      return;
-    }
-
-    final welcomePage = data['welcomePage'];
-    if (welcomePage != null) {
-      _title = (welcomePage['title'] ?? 'Welcome!').toString();
-      _subtitle = (welcomePage['subtitle'] ?? '').toString();
-    }
-
-    final event = data['event'];
-    if (event != null) {
-      _eventName = (event['name'] ?? '').toString();
-      if (event['gameNames'] is List) {
-        _gameNames = (event['gameNames'] as List).map((e) => e.toString()).toList();
-      }
-    }
-
-    final bingoBoard = data['bingoBoard'];
-    if (bingoBoard != null && bingoBoard['boxes'] is List) {
-      _boxes = (bingoBoard['boxes'] as List).map((e) => e?.toString() ?? '').toList();
-    }
-
-    final questionPackage = data['questionPackage'];
-    if (questionPackage != null && questionPackage['questions'] is List) {
-      _questions = List<Map<String, dynamic>>.from(
-        (questionPackage['questions'] as List).map((q) => Map<String, dynamic>.from(q)),
-      );
-    }
-
-    setState(() {
-      _isLoading = false;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Welcome'),
+        title: const Text('Minigames Collection'),
       ),
       body: Center(
-        child: _isLoading
-            ? const CircularProgressIndicator()
-            : _errorMessage != null
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _errorMessage!,
-                        style: const TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                '🎮',
+                style: TextStyle(fontSize: 80),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Play Minigames',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Choose from a variety of fun games!',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const GameSelectionPage(
+                        onGameComplete: null,
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadPublishedEvent,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _title,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center,
-                      ),
-                      if (_subtitle.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          _subtitle,
-                          style: const TextStyle(fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BingoBoardPage(
-                                boxes: _boxes,
-                                gameNames: _gameNames,
-                                questions: _questions,
-                                eventName: _eventName,
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text('Continue'),
-                      ),
-                    ],
-                  ),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                child: const Text('Start Playing'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -533,6 +453,10 @@ class _BingoBoardPageState extends State<BingoBoardPage> {
             // On win: Pop game and show minigame win screen
             Navigator.pop(context);
             _showMinigameWinScreen();
+          },
+          () {
+            // On lose: Just pop back for now in the bingo flow
+            Navigator.pop(context);
           },
           () {
             // On skip: Pop back to bingo board

@@ -580,9 +580,10 @@ namespace BingoEvent.API.Controllers
 
         /// <summary>
         /// POST endpoint to save an event (create or update)
+        /// When creating a new event, the creator is automatically set to the current admin's username
         /// </summary>
         [HttpPost("events")]
-        public async Task<IActionResult> SaveEvent([FromBody] SaveEventRequest? request)
+        public async Task<IActionResult> SaveEvent([FromBody] SaveEventRequest? request, [FromQuery] string? adminUsername)
         {
             try
             {
@@ -599,24 +600,30 @@ namespace BingoEvent.API.Controllers
                 Event evt;
                 if (request.Id.HasValue)
                 {
+                    // Updating existing event - keep existing creator
                     evt = await _dbContext.Events.FindAsync(request.Id.Value);
                     if (evt == null)
                         return NotFound(new { Success = false, Message = "Event not found." });
 
                     evt.Name = request.Name;
-                    evt.Creator = request.Creator ?? "";
                     evt.WelcomePageId = request.WelcomePageId;
                     evt.BingoBoardId = request.BingoBoardId;
                     evt.GameNames = gameNamesJson;
                     evt.QuestionPackageId = request.QuestionPackageId;
+                    // Note: Creator is NOT updated on existing events
                     _dbContext.Events.Update(evt);
                 }
                 else
                 {
+                    // Creating new event - auto-populate creator with current admin username
+                    var creator = string.IsNullOrWhiteSpace(request.Creator)
+                        ? (adminUsername ?? "Unknown")
+                        : request.Creator;
+
                     evt = new Event
                     {
                         Name = request.Name,
-                        Creator = request.Creator ?? "",
+                        Creator = creator,
                         WelcomePageId = request.WelcomePageId,
                         BingoBoardId = request.BingoBoardId,
                         GameNames = gameNamesJson,

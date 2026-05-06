@@ -86,7 +86,7 @@ cp -r admin-app /var/www/bingo/admin/
 cd /opt/bingo-api
 dotnet run --urls "http://0.0.0.0:5000"
 
-# Set up nginx (see nginx.conf)
+# Set up httpd (see httpd.conf.example)
 ```
 
 ### Access from Browser:
@@ -127,7 +127,7 @@ If localhost/127.0.0.1
     → API URL = http://localhost:5000/api/bingo
 
 Else (server)
-    → API URL = /api/bingo (relative, nginx proxies it)
+    → API URL = /api/bingo (relative, httpd proxies it)
 ```
 
 No configuration needed!

@@ -343,16 +343,16 @@ sudo netstat -tlnp | grep ssh
 
 ---
 
-### Nginx Not Proxying API
+### Httpd Not Proxying API
 
 **Error:** API requests return 404
 
-**Check Nginx Config:**
+**Check Httpd Config:**
 ```bash
-sudo nginx -t  # Test config
-sudo systemctl restart nginx  # Restart
-sudo systemctl status nginx  # Check status
-tail -f /var/log/nginx/error.log  # View errors
+sudo httpd -t  # Test config
+sudo systemctl restart httpd  # Restart
+sudo systemctl status httpd  # Check status
+tail -f /var/log/httpd/error_log  # View errors
 ```
 
 **Verify Upstream:**

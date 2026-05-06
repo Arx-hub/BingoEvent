@@ -17,7 +17,7 @@ This document summarizes all the changes made to enable the Bingo Event system t
 **Features:**
 - Automatically detects if running on localhost or server
 - For localhost: Uses `http://localhost:5000/api/bingo`
-- For server: Uses relative URL `/api/bingo` (proxied by nginx)
+- For server: Uses relative URL `/api/bingo` (proxied by httpd)
 - Allows manual override with `setBaseUrl()`
 
 **Location:**
@@ -152,9 +152,9 @@ start_api.bat
 
 ---
 
-#### D. nginx.conf.example
+#### D. httpd.conf.example
 **Contains:**
-- Complete nginx configuration
+- Complete httpd configuration
 - Guest and admin app locations
 - API proxying setup
 - Security headers
@@ -196,7 +196,7 @@ App works! ✓
 ```
 Files transferred to server
     ↓
-Nginx configured to:
+Httpd configured to:
   - Serve HTML files from /var/www/bingo/
   - Proxy /api/* to localhost:5000
     ↓
@@ -214,7 +214,7 @@ API URL set to: /api/bingo (relative)
     ↓
 Browser requests: /api/bingo/... (from server)
     ↓
-Nginx proxies to: localhost:5000/api/bingo/...
+Httpd proxies to: localhost:5000/api/bingo/...
     ↓
 API responds
     ↓
@@ -245,7 +245,7 @@ App works! ✓
              │                         │
       ┌──────▼────────┐         ┌─────▼──────┐
       │  Localhost    │         │   Server   │
-      │  (Port 5000)  │         │ (via nginx)│
+      │  (Port 5000)  │         │ (via httpd)│
       └──────┬────────┘         └─────┬──────┘
              │                        │
         ┌────▼────────────────────────▼─────┐
@@ -267,14 +267,14 @@ App works! ✓
 
 ### 1. Dynamic API URL Detection
 - ✓ Works on localhost (development)
-- ✓ Works on server with nginx (production)
+- ✓ Works on server with httpd (production)
 - ✓ Works on Docker with reverse proxy
 - ✓ Can be manually overridden
 
 ### 2. No Docker Required
 - ✓ Simple build process
 - ✓ Native web deployment
-- ✓ Standard nginx configuration
+- ✓ Standard httpd configuration
 - ✓ Easy PuTTY management
 
 ### 3. CORS Support
@@ -323,7 +323,7 @@ BingoEvent/
 ├── DEPLOYMENT_GUIDE.md                ✨ NEW
 ├── QUICK_REFERENCE.md                 ✨ NEW
 ├── TROUBLESHOOTING.md                 ✨ NEW
-├── nginx.conf.example                 ✨ NEW
+├── httpd.conf.example                 ✨ NEW
 └── ...
 ```
 
@@ -347,7 +347,7 @@ BingoEvent/
 
 4. **For Server Deployment**
    - Follow DEPLOYMENT_GUIDE.md → Server Deployment section
-   - Use nginx.conf.example for nginx setup
+   - Use httpd.conf.example for httpd setup
    - Connect via PuTTY SSH
 
 ---
@@ -385,7 +385,7 @@ After setup, verify:
 | `DEPLOYMENT_GUIDE.md` | Complete guide | ✨ Created |
 | `QUICK_REFERENCE.md` | Quick start | ✨ Created |
 | `TROUBLESHOOTING.md` | Problem solutions | ✨ Created |
-| `nginx.conf.example` | Server config | ✨ Created |
+| `httpd.conf.example` | Server config | ✨ Created |
 
 ---
 
@@ -395,14 +395,14 @@ After setup, verify:
 - `DEPLOYMENT_GUIDE.md` - Most comprehensive
 - `QUICK_REFERENCE.md` - For quick lookup
 - `TROUBLESHOOTING.md` - For error solving
-- `nginx.conf.example` - For server setup
+- `httpd.conf.example` - For server setup
 
 **Key Concepts:**
 - API runs independently on port 5000
 - Web apps are static HTML/JS/CSS
 - ApiConfig handles URL detection
 - CORS allows cross-origin requests
-- Nginx proxies requests on server
+- Httpd proxies requests on server
 
 ---
 

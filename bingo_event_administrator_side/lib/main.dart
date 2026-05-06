@@ -165,7 +165,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     ];
 
     final tabViews = [
-      const EventsTab(),
+      EventsTab(currentUsername: widget.username),
       const WelcomePageTab(),
       const BingoBoardsTab(),
       const QuestionPackagesTab(),
@@ -945,7 +945,9 @@ class _EditAdminDialogState extends State<EditAdminDialog> {
 }
 
 class EventsTab extends StatefulWidget {
-  const EventsTab({super.key});
+  final String? currentUsername;
+
+  const EventsTab({super.key, this.currentUsername});
 
   @override
   State<EventsTab> createState() => _EventsTabState();
@@ -1173,6 +1175,7 @@ class _EventsTabState extends State<EventsTab> {
           welcomePages: welcomePages,
           bingoBoards: bingoBoards,
           questionPackages: questionPackages,
+          currentUsername: widget.currentUsername,
           onSave: () {
             _loadAll();
             Navigator.pop(context);
@@ -1403,6 +1406,7 @@ class _EventsTabState extends State<EventsTab> {
                           welcomePages: welcomePages,
                           bingoBoards: bingoBoards,
                           questionPackages: questionPackages,
+                          currentUsername: widget.currentUsername,
                           onSave: () {
                             _loadAll();
                             Navigator.pop(context);
@@ -1435,6 +1439,7 @@ class EventEditor extends StatefulWidget {
   final List<Map<String, dynamic>> bingoBoards;
   final List<Map<String, dynamic>> questionPackages;
   final VoidCallback onSave;
+  final String? currentUsername;
 
   const EventEditor({
     super.key,
@@ -1449,6 +1454,7 @@ class EventEditor extends StatefulWidget {
     required this.bingoBoards,
     required this.questionPackages,
     required this.onSave,
+    this.currentUsername,
   });
 
   @override
@@ -1468,7 +1474,13 @@ class _EventEditorState extends State<EventEditor> {
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.existingName ?? '');
-    creatorController = TextEditingController(text: widget.existingCreator ?? '');
+    
+    // Only set creator when editing existing events
+    // For new events, leave empty (backend will auto-populate from adminUsername)
+    creatorController = TextEditingController(
+      text: widget.existingId != null ? (widget.existingCreator ?? '') : '',
+    );
+    
     selectedWelcomePageId = widget.existingWelcomePageId;
     selectedBingoBoardId = widget.existingBingoBoardId;
     selectedQuestionPackageId = widget.existingQuestionPackageId;
@@ -1513,6 +1525,7 @@ class _EventEditorState extends State<EventEditor> {
         gameNames: selectedGameNames,
         questionPackageId: selectedQuestionPackageId,
         id: widget.existingId,
+        adminUsername: widget.currentUsername,
       );
 
       if (mounted) {
@@ -1557,16 +1570,22 @@ class _EventEditorState extends State<EventEditor> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: creatorController,
-                  enabled: !isSaving,
-                  decoration: const InputDecoration(
-                    labelText: 'Creator Name',
-                    hintText: 'Who is creating this event',
-                    border: OutlineInputBorder(),
+                // Creator field only shown when editing existing events (read-only)
+                if (widget.existingId != null)
+                  Column(
+                    children: [
+                      TextField(
+                        controller: creatorController,
+                        enabled: false,
+                        decoration: const InputDecoration(
+                          labelText: 'Creator Name',
+                          hintText: 'Auto-assigned when created',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 24),
                 // Welcome Page dropdown
                 DropdownButtonFormField<int>(
                   initialValue: widget.welcomePages.any((p) => p['id'] == selectedWelcomePageId)

@@ -13,20 +13,31 @@ class EventAPI {
     required List<String> gameNames,
     int? questionPackageId,
     int? id,
+    String? adminUsername,
   }) async {
     try {
-      final url = Uri.parse('$baseUrl/events');
+      final url = id == null && adminUsername != null
+          ? Uri.parse('$baseUrl/events?adminUsername=${Uri.encodeComponent(adminUsername)}')
+          : Uri.parse('$baseUrl/events');
+      
       final Map<String, dynamic> bodyMap = {
         'name': name,
-        'creator': creator,
         'welcomePageId': welcomePageId,
         'bingoBoardId': bingoBoardId,
         'gameNames': gameNames,
         'questionPackageId': questionPackageId,
       };
+      
+      // Only include creator if not creating a new event
+      // (when creating new, API will auto-populate from adminUsername query param)
       if (id != null) {
         bodyMap['id'] = id;
+        bodyMap['creator'] = creator;
+      } else if (!creator.isEmpty) {
+        // For new events, only include creator if explicitly provided
+        bodyMap['creator'] = creator;
       }
+      
       final body = jsonEncode(bodyMap);
 
       final response = await http.post(

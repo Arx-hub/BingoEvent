@@ -19,7 +19,7 @@
     Alias /guest/ /var/www/bingo/guest/
 
     <Directory "/var/www/bingo/guest/">
-        Options Indexes FollowSymLinks
+        Options FollowSymLinks
         AllowOverride None
         Require all granted
 
@@ -51,7 +51,7 @@
     Alias /admin/ /var/www/bingo/admin/
 
     <Directory "/var/www/bingo/admin/">
-        Options Indexes FollowSymLinks
+        Options FollowSymLinks
         AllowOverride None
         Require all granted
 

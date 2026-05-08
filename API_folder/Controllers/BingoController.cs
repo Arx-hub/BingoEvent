@@ -605,6 +605,12 @@ namespace BingoEvent.API.Controllers
                     if (evt == null)
                         return NotFound(new { Success = false, Message = "Event not found." });
 
+                    // Check permissions: Master admin or original creator
+                    if (!await CheckPermissions(adminUsername, evt.Creator))
+                    {
+                        return Unauthorized(new { Success = false, Message = "You do not have permission to modify this event. Only the creator or a master administrator can modify it." });
+                    }
+
                     evt.Name = request.Name;
                     evt.WelcomePageId = request.WelcomePageId;
                     evt.BingoBoardId = request.BingoBoardId;
@@ -616,9 +622,10 @@ namespace BingoEvent.API.Controllers
                 else
                 {
                     // Creating new event - auto-populate creator with current admin username
-                    var creator = string.IsNullOrWhiteSpace(request.Creator)
-                        ? (adminUsername ?? "Unknown")
-                        : request.Creator;
+                    // Prioritize adminUsername from query param for security/consistency
+                    var creator = string.IsNullOrWhiteSpace(adminUsername) 
+                        ? (string.IsNullOrWhiteSpace(request.Creator) ? "Unknown" : request.Creator)
+                        : adminUsername;
 
                     evt = new Event
                     {
@@ -646,13 +653,19 @@ namespace BingoEvent.API.Controllers
         /// DELETE endpoint to delete an event
         /// </summary>
         [HttpDelete("events/{id}")]
-        public async Task<IActionResult> DeleteEvent(int id)
+        public async Task<IActionResult> DeleteEvent(int id, [FromQuery] string? adminUsername)
         {
             try
             {
                 var evt = await _dbContext.Events.FindAsync(id);
                 if (evt == null)
                     return NotFound(new { Success = false, Message = "Event not found." });
+
+                // Check permissions: Master admin or original creator
+                if (!await CheckPermissions(adminUsername, evt.Creator))
+                {
+                    return Unauthorized(new { Success = false, Message = "You do not have permission to delete this event. Only the creator or a master administrator can delete it." });
+                }
 
                 _dbContext.Events.Remove(evt);
                 await _dbContext.SaveChangesAsync();
@@ -888,7 +901,7 @@ namespace BingoEvent.API.Controllers
         /// POST endpoint to save a question package (create or update) with questions
         /// </summary>
         [HttpPost("question-packages")]
-        public async Task<IActionResult> SaveQuestionPackage([FromBody] SaveQuestionPackageRequest? request)
+        public async Task<IActionResult> SaveQuestionPackage([FromBody] SaveQuestionPackageRequest? request, [FromQuery] string? adminUsername)
         {
             try
             {
@@ -918,6 +931,12 @@ namespace BingoEvent.API.Controllers
                     if (pkg == null)
                         return NotFound(new { Success = false, Message = "Question package not found." });
 
+                    // Check permissions: Master admin or original creator
+                    if (!await CheckPermissions(adminUsername, pkg.Creator))
+                    {
+                        return Unauthorized(new { Success = false, Message = "You do not have permission to modify this question package. Only the creator or a master administrator can modify it." });
+                    }
+
                     pkg.Name = request.Name;
                     if (request.IsDefault.HasValue)
                         pkg.IsDefault = request.IsDefault.Value;
@@ -930,10 +949,16 @@ namespace BingoEvent.API.Controllers
                 }
                 else
                 {
+                    // Creating new package - auto-populate creator with current admin username
+                    var creator = string.IsNullOrWhiteSpace(adminUsername) 
+                        ? "Unknown" 
+                        : adminUsername;
+                        
                     pkg = new QuestionPackage
                     {
                         Name = request.Name,
                         IsDefault = request.IsDefault ?? false,
+                        Creator = creator,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow,
                     };
@@ -972,7 +997,7 @@ namespace BingoEvent.API.Controllers
         /// POST endpoint to duplicate a question package
         /// </summary>
         [HttpPost("question-packages/{id}/duplicate")]
-        public async Task<IActionResult> DuplicateQuestionPackage(int id)
+        public async Task<IActionResult> DuplicateQuestionPackage(int id, [FromQuery] string? adminUsername)
         {
             try
             {
@@ -994,6 +1019,7 @@ namespace BingoEvent.API.Controllers
                 {
                     Name = newName,
                     IsDefault = false,
+                    Creator = string.IsNullOrWhiteSpace(adminUsername) ? original.Creator : adminUsername,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                 };
@@ -1027,13 +1053,19 @@ namespace BingoEvent.API.Controllers
         /// DELETE endpoint to delete a question package and its questions
         /// </summary>
         [HttpDelete("question-packages/{id}")]
-        public async Task<IActionResult> DeleteQuestionPackage(int id)
+        public async Task<IActionResult> DeleteQuestionPackage(int id, [FromQuery] string? adminUsername)
         {
             try
             {
                 var pkg = await _dbContext.QuestionPackages.FindAsync(id);
                 if (pkg == null)
                     return NotFound(new { Success = false, Message = "Question package not found." });
+
+                // Check permissions: Master admin or original creator
+                if (!await CheckPermissions(adminUsername, pkg.Creator))
+                {
+                    return Unauthorized(new { Success = false, Message = "You do not have permission to delete this question package. Only the creator or a master administrator can delete it." });
+                }
 
                 _dbContext.QuestionPackages.Remove(pkg);
                 await _dbContext.SaveChangesAsync();
@@ -1111,28 +1143,46 @@ namespace BingoEvent.API.Controllers
         /// POST endpoint for admin login
         /// </summary>
         [HttpPost("admin/login")]
-        public IActionResult AdminLogin([FromBody] AdminLoginRequest? request)
+        public async Task<IActionResult> AdminLogin([FromBody] AdminLoginRequest? request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
                 return BadRequest(new { Success = false, Message = "Username and password are required." });
 
-            // Stored hash of the admin password (SHA256 of "Saskytampere")
-            const string validUsername = "Sasky1";
-            const string validPasswordHash = "0f4ac9e19b1d7104f165e201433db85c519d008b4dc37b950442a3c45c86e7bb";
+            var admin = await _dbContext.AdminAccounts.FirstOrDefaultAsync(a => a.Username == request.Username);
+            if (admin == null)
+                return Unauthorized(new { Success = false, Message = "Invalid username or password." });
 
-            using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var inputBytes = System.Text.Encoding.UTF8.GetBytes(request.Password);
-            var hashBytes = sha256.ComputeHash(inputBytes);
-            var inputHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+            var inputHash = HashPassword(request.Password);
 
-            if (request.Username == validUsername && inputHash == validPasswordHash)
+            if (inputHash == admin.PasswordHash)
             {
-                return Ok(new { Success = true, Message = "Login successful." });
+                return Ok(new { 
+                    Success = true, 
+                    Message = "Login successful.",
+                    IsMaster = admin.IsMaster
+                });
             }
             else
             {
                 return Unauthorized(new { Success = false, Message = "Invalid username or password." });
             }
+        }
+
+        private static string HashPassword(string password)
+        {
+            return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password));
+        }
+
+        private async Task<bool> CheckPermissions(string? username, string? creator)
+        {
+            if (string.IsNullOrEmpty(username)) return false;
+            
+            // Master admin always has permission
+            var admin = await _dbContext.AdminAccounts.FirstOrDefaultAsync(a => a.Username == username);
+            if (admin != null && admin.IsMaster) return true;
+            
+            // Otherwise, must be the creator
+            return username == creator;
         }
     }
 

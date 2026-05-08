@@ -168,7 +168,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       EventsTab(currentUsername: widget.username),
       const WelcomePageTab(),
       const BingoBoardsTab(),
-      const QuestionPackagesTab(),
+      QuestionPackagesTab(currentUsername: widget.username),
       const MiniGamesTab(),
       const FeedbackTab(),
       if (widget.isMaster)
@@ -1033,7 +1033,7 @@ class _EventsTabState extends State<EventsTab> {
               Navigator.pop(context);
               if (id != null) {
                 try {
-                  await EventAPI.deleteEvent(id);
+                  await EventAPI.deleteEvent(id, adminUsername: widget.currentUsername);
                   _loadAll();
                 } catch (e) {
                   if (mounted) {
@@ -1188,8 +1188,25 @@ class _EventsTabState extends State<EventsTab> {
   String _getGuestUrl() {
     if (kIsWeb) {
       final adminUri = Uri.base;
-      final guestPort = adminUri.port == 8082 ? 8081 : 8081;
-      return '${adminUri.scheme}://${adminUri.host}:$guestPort';
+      final host = adminUri.host;
+      
+      // Handle Localhost testing
+      if (host == 'localhost' || host == '127.0.0.1') {
+        final guestPort = adminUri.port == 8082 ? 8081 : 8081;
+        return '${adminUri.scheme}://$host:$guestPort';
+      }
+      
+      // Handle Local IP testing (e.g., 192.168.x.x)
+      // If we are on an IP but using port 8082, assume guest is on 8081
+      if (adminUri.port == 8082) {
+        return '${adminUri.scheme}://$host:8081';
+      }
+
+      // PRODUCTION / ALMALINUX DEPLOYMENT:
+      // If you deploy to a server where they are in subdirectories like:
+      // http://your-server-ip/admin and http://your-server-ip/guest
+      // This will automatically point to the /guest folder on the same server.
+      return '${adminUri.scheme}://$host/guest';
     }
     return 'http://localhost:8081';
   }
@@ -1463,7 +1480,6 @@ class EventEditor extends StatefulWidget {
 
 class _EventEditorState extends State<EventEditor> {
   late TextEditingController nameController;
-  late TextEditingController creatorController;
   int? selectedWelcomePageId;
   int? selectedBingoBoardId;
   int? selectedQuestionPackageId;
@@ -1475,12 +1491,6 @@ class _EventEditorState extends State<EventEditor> {
     super.initState();
     nameController = TextEditingController(text: widget.existingName ?? '');
     
-    // Only set creator when editing existing events
-    // For new events, leave empty (backend will auto-populate from adminUsername)
-    creatorController = TextEditingController(
-      text: widget.existingId != null ? (widget.existingCreator ?? '') : '',
-    );
-    
     selectedWelcomePageId = widget.existingWelcomePageId;
     selectedBingoBoardId = widget.existingBingoBoardId;
     selectedQuestionPackageId = widget.existingQuestionPackageId;
@@ -1490,7 +1500,6 @@ class _EventEditorState extends State<EventEditor> {
   @override
   void dispose() {
     nameController.dispose();
-    creatorController.dispose();
     super.dispose();
   }
 
@@ -1519,7 +1528,7 @@ class _EventEditorState extends State<EventEditor> {
     try {
       await EventAPI.saveEvent(
         name: nameController.text,
-        creator: creatorController.text,
+        creator: widget.existingCreator ?? '',
         welcomePageId: selectedWelcomePageId!,
         bingoBoardId: selectedBingoBoardId!,
         gameNames: selectedGameNames,
@@ -1574,16 +1583,14 @@ class _EventEditorState extends State<EventEditor> {
                 if (widget.existingId != null)
                   Column(
                     children: [
-                      TextField(
-                        controller: creatorController,
-                        enabled: false,
-                        decoration: const InputDecoration(
-                          labelText: 'Creator Name',
-                          hintText: 'Auto-assigned when created',
-                          border: OutlineInputBorder(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          'Creator: ${widget.existingCreator ?? 'Unknown'}',
+                          style: TextStyle(color: Colors.grey.shade700, fontStyle: FontStyle.italic),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 // Welcome Page dropdown
@@ -2674,7 +2681,8 @@ class _BingoBoardPreviewState extends State<BingoBoardPreview> {
 // ==================== Question Packages Tab ====================
 
 class QuestionPackagesTab extends StatefulWidget {
-  const QuestionPackagesTab({super.key});
+  final String currentUsername;
+  const QuestionPackagesTab({super.key, required this.currentUsername});
 
   @override
   State<QuestionPackagesTab> createState() => _QuestionPackagesTabState();
@@ -2730,7 +2738,7 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
               Navigator.pop(context);
               if (id != null) {
                 try {
-                  await QuestionPackageAPI.deleteQuestionPackage(id);
+                  await QuestionPackageAPI.deleteQuestionPackage(id, adminUsername: widget.currentUsername);
                   _loadPackages();
                 } catch (e) {
                   if (mounted) {
@@ -2754,7 +2762,7 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
     if (id == null) return;
 
     try {
-      await QuestionPackageAPI.duplicateQuestionPackage(id);
+      await QuestionPackageAPI.duplicateQuestionPackage(id, adminUsername: widget.currentUsername);
       _loadPackages();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2802,17 +2810,21 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
             (pkg['questions'] as List).map((q) => Map<String, dynamic>.from(q)))
         : <Map<String, dynamic>>[];
 
+    final existingNames = packages
+        .where((p) => p['id'] != pkg['id'])
+        .map((p) => (p['name'] ?? '').toString())
+        .toList();
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => QuestionPackageEditor(
           existingId: pkg['id'] as int?,
           existingName: (pkg['name'] ?? '').toString(),
+          existingCreator: (pkg['creator'] ?? '').toString(),
           existingQuestions: questions,
-          existingPackageNames: packages
-              .where((p) => p['id'] != pkg['id'])
-              .map((p) => (p['name'] ?? '').toString())
-              .toList(),
+          existingPackageNames: existingNames,
+          currentUsername: widget.currentUsername,
           onSave: () {
             _loadPackages();
             Navigator.pop(context);
@@ -3019,13 +3031,13 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
                 const SizedBox(width: 16),
                 ElevatedButton.icon(
                   onPressed: () {
+                    final existingNames = packages.map((p) => (p['name'] ?? '').toString()).toList();
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => QuestionPackageEditor(
-                          existingPackageNames: packages
-                              .map((p) => (p['name'] ?? '').toString())
-                              .toList(),
+                          existingPackageNames: existingNames,
+                          currentUsername: widget.currentUsername,
                           onSave: () {
                             _loadPackages();
                             Navigator.pop(context);
@@ -3051,16 +3063,20 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
 class QuestionPackageEditor extends StatefulWidget {
   final int? existingId;
   final String? existingName;
+  final String? existingCreator;
   final List<Map<String, dynamic>>? existingQuestions;
   final List<String> existingPackageNames;
+  final String currentUsername;
   final VoidCallback onSave;
 
   const QuestionPackageEditor({
     super.key,
     this.existingId,
     this.existingName,
+    this.existingCreator,
     this.existingQuestions,
     required this.existingPackageNames,
+    required this.currentUsername,
     required this.onSave,
   });
 
@@ -3186,6 +3202,7 @@ class _QuestionPackageEditorState extends State<QuestionPackageEditor> {
         name: name,
         questions: questionsList,
         id: widget.existingId,
+        adminUsername: widget.currentUsername,
       );
 
       if (mounted) {
@@ -3228,6 +3245,14 @@ class _QuestionPackageEditorState extends State<QuestionPackageEditor> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                if (widget.existingId != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12.0),
+                    child: Text(
+                      'Creator: ${widget.existingCreator ?? 'Unknown'}',
+                      style: TextStyle(color: Colors.grey.shade700, fontStyle: FontStyle.italic),
+                    ),
+                  ),
                 Text(
                   'Questions (${questions.length}/20) — minimum 3 required',
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

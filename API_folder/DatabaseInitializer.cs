@@ -92,6 +92,7 @@ public static class DatabaseInitializer
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     Name TEXT NOT NULL DEFAULT '',
                     IsDefault INTEGER NOT NULL DEFAULT 0,
+                    Creator TEXT NOT NULL DEFAULT '',
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
                     UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 );";
@@ -137,6 +138,9 @@ public static class DatabaseInitializer
 
         // Add PublishedAt column to Events if it doesn't exist (for existing DBs)
         AddColumnIfNotExists(connection, "Events", "PublishedAt", "TEXT");
+
+        // Add Creator column to QuestionPackages if it doesn't exist (for existing DBs)
+        AddColumnIfNotExists(connection, "QuestionPackages", "Creator", "TEXT NOT NULL DEFAULT ''");
 
         // Feedbacks table
         using (var cmd = connection.CreateCommand())
@@ -312,7 +316,7 @@ public static class DatabaseInitializer
         {
             using (var insertPkg = connection.CreateCommand())
             {
-                insertPkg.CommandText = "INSERT INTO QuestionPackages (Name, IsDefault, CreatedAt, UpdatedAt) VALUES (@name, 1, datetime('now'), datetime('now'));";
+                insertPkg.CommandText = "INSERT INTO QuestionPackages (Name, IsDefault, Creator, CreatedAt, UpdatedAt) VALUES (@name, 1, 'System', datetime('now'), datetime('now'));";
                 insertPkg.Parameters.AddWithValue("@name", pkg.Name);
                 insertPkg.ExecuteNonQuery();
             }

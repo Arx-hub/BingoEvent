@@ -49,10 +49,11 @@ class EventAPI {
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Failed to save event: ${response.statusCode} - ${response.body}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to save event: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error saving event: $e');
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -80,9 +81,11 @@ class EventAPI {
     }
   }
 
-  static Future<bool> deleteEvent(int id) async {
+  static Future<bool> deleteEvent(int id, {String? adminUsername}) async {
     try {
-      final url = Uri.parse('$baseUrl/events/$id');
+      final url = adminUsername != null
+          ? Uri.parse('$baseUrl/events/$id?adminUsername=${Uri.encodeComponent(adminUsername)}')
+          : Uri.parse('$baseUrl/events/$id');
 
       final response = await http.delete(
         url,
@@ -93,10 +96,11 @@ class EventAPI {
         final data = jsonDecode(response.body);
         return data['success'] == true;
       } else {
-        throw Exception('Failed to delete event: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to delete event: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error deleting event: $e');
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
 

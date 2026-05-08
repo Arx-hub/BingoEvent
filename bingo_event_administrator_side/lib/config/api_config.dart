@@ -21,13 +21,15 @@ class ApiConfig {
     if (kIsWeb) {
       // Get the current window location
       final String windowLocation = _getWindowLocation();
+      final uri = Uri.parse(windowLocation);
+      final host = uri.host;
       
-      if (windowLocation.contains('localhost') || windowLocation.contains('127.0.0.1')) {
-        // Local development - hit the C# API on port 5000
-        _rootUrl = 'http://localhost:5000/api';
+      if (host == 'localhost' || host == '127.0.0.1' || RegExp(r'\d+\.\d+\.\d+\.\d+').hasMatch(host)) {
+        // Local development or Local IP testing
+        // Use the same host as the window, but swap to port 5000 for the API
+        _rootUrl = '${uri.scheme}://$host:5000/api';
       } else {
         // Server deployment - use relative URL
-        // This assumes nginx/IIS proxies /api/* to the backend
         _rootUrl = '/api';
       }
     } else {

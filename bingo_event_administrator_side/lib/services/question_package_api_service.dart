@@ -33,9 +33,12 @@ class QuestionPackageAPI {
     required List<Map<String, dynamic>> questions,
     int? id,
     bool isDefault = false,
+    String? adminUsername,
   }) async {
     try {
-      final url = Uri.parse('$baseUrl/question-packages');
+      final url = adminUsername != null
+          ? Uri.parse('$baseUrl/question-packages?adminUsername=${Uri.encodeComponent(adminUsername)}')
+          : Uri.parse('$baseUrl/question-packages');
       final Map<String, dynamic> bodyMap = {
         'name': name,
         'questions': questions,
@@ -56,16 +59,18 @@ class QuestionPackageAPI {
         return jsonDecode(response.body);
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Failed to save question package');
+        throw Exception(errorData['message'] ?? 'Failed to save question package: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error saving question package: $e');
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
 
-  static Future<Map<String, dynamic>> duplicateQuestionPackage(int id) async {
+  static Future<Map<String, dynamic>> duplicateQuestionPackage(int id, {String? adminUsername}) async {
     try {
-      final url = Uri.parse('$baseUrl/question-packages/$id/duplicate');
+      final url = adminUsername != null
+          ? Uri.parse('$baseUrl/question-packages/$id/duplicate?adminUsername=${Uri.encodeComponent(adminUsername)}')
+          : Uri.parse('$baseUrl/question-packages/$id/duplicate');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -81,9 +86,11 @@ class QuestionPackageAPI {
     }
   }
 
-  static Future<bool> deleteQuestionPackage(int id) async {
+  static Future<bool> deleteQuestionPackage(int id, {String? adminUsername}) async {
     try {
-      final url = Uri.parse('$baseUrl/question-packages/$id');
+      final url = adminUsername != null
+          ? Uri.parse('$baseUrl/question-packages/$id?adminUsername=${Uri.encodeComponent(adminUsername)}')
+          : Uri.parse('$baseUrl/question-packages/$id');
       final response = await http.delete(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -93,10 +100,11 @@ class QuestionPackageAPI {
         final data = jsonDecode(response.body);
         return data['success'] == true;
       } else {
-        throw Exception('Failed to delete question package: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to delete question package: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error deleting question package: $e');
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
 }

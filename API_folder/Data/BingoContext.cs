@@ -102,6 +102,7 @@ namespace BingoEvent.API.Data
         public int Id { get; set; }
         public string Name { get; set; } = "";
         public bool IsDefault { get; set; } = false;
+        public string Creator { get; set; } = "";
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

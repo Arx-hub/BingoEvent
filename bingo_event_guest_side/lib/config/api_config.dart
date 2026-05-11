@@ -24,13 +24,12 @@ class ApiConfig {
       final uri = Uri.parse(windowLocation);
       final host = uri.host;
       
-      if (host == 'localhost' || host == '127.0.0.1' || RegExp(r'\d+\.\d+\.\d+\.\d+').hasMatch(host)) {
-        // Local development or Local IP testing
-        // Use the same host as the window, but swap to port 5000 for the API
+      if (host == 'localhost' || host == '127.0.0.1') {
+        // Local development - use localhost:5000 for the API
         _rootUrl = '${uri.scheme}://$host:5000/api';
       } else {
-        // Server deployment - use relative URL
-        _rootUrl = '/api';
+        // Production/server deployment - use /bingo/api for the API
+        _rootUrl = '/bingo/api';
       }
     } else {
       _rootUrl = '/api';

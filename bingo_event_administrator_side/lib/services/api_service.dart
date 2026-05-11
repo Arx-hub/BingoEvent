@@ -1,15 +1,14 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_config.dart';
 
 class ApiService {
-  // Use relative URL - nginx will proxy /api/ to internal bingo-api:8080
-  // Relative URLs work for any deployment (local Docker, remote, Portainer)
-  static String baseUrl = '/api/bingo';
+  // Use ApiConfig for dynamic base URL
+  static String get baseUrl => ApiConfig.baseUrl;
 
   /// Sets the base URL for the API service (useful for switching environments)
   static void setBaseUrl(String url) {
-    baseUrl = url;
-    print('API base URL set to: $baseUrl');
+    ApiConfig.setRootUrl(url);
   }
 
   /// Creates a new bingo board and saves it to the database

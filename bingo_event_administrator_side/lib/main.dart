@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'dart:math';
-import 'package:http/http.dart' as http;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'services/bingo_api_service.dart';
@@ -9,10 +7,13 @@ import 'services/welcome_page_api_service.dart';
 import 'services/event_api_service.dart';
 import 'services/question_package_api_service.dart';
 import 'services/feedback_api_service.dart';
-import 'services/auth_service.dart';
+import 'services/auth_api_service.dart';
 import 'minigames/games_registry.dart';
+import 'config/api_config.dart';
 
 void main() {
+  // Initialize API configuration before running the app
+  ApiConfig.initialize();
   runApp(const AdminApp());
 }
 
@@ -80,8 +81,17 @@ class BingoBoard {
   }
 }
 
-class AdminApp extends StatelessWidget {
+class AdminApp extends StatefulWidget {
   const AdminApp({super.key});
+
+  @override
+  State<AdminApp> createState() => _AdminAppState();
+}
+
+class _AdminAppState extends State<AdminApp> {
+  int? currentAdminId;
+  bool? isMasterAccount;
+  String? currentUsername;
 
   @override
   Widget build(BuildContext context) {
@@ -90,129 +100,333 @@ class AdminApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const AdminLoginPage(),
+      home: currentAdminId == null
+          ? LoginPage(onLoginSuccess: (adminId, isMaster, username) {
+              setState(() {
+                currentAdminId = adminId;
+                isMasterAccount = isMaster;
+                currentUsername = username;
+              });
+            })
+          : AdminHomePage(
+              adminId: currentAdminId!,
+              isMaster: isMasterAccount ?? false,
+              username: currentUsername ?? 'Unknown',
+              onLogout: () {
+                setState(() {
+                  currentAdminId = null;
+                  isMasterAccount = null;
+                  currentUsername = null;
+                });
+              },
+            ),
     );
   }
 }
 
-class AdminLoginPage extends StatefulWidget {
-  const AdminLoginPage({super.key});
+class AdminHomePage extends StatefulWidget {
+  final int adminId;
+  final bool isMaster;
+  final String username;
+  final VoidCallback onLogout;
+
+  const AdminHomePage({
+    super.key,
+    required this.adminId,
+    required this.isMaster,
+    required this.username,
+    required this.onLogout,
+  });
 
   @override
-  State<AdminLoginPage> createState() => _AdminLoginPageState();
+  State<AdminHomePage> createState() => _AdminHomePageState();
 }
 
-class _AdminLoginPageState extends State<AdminLoginPage> {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
-  String? _errorMessage;
-  bool _obscurePassword = true;
+class _AdminHomePageState extends State<AdminHomePage> {
+  late int _tabCount;
+  late List<Tab> _tabs;
+  late List<Widget> _tabViews;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupTabs();
+  }
+
+  void _setupTabs() {
+    final tabs = [
+      const Tab(text: 'Events'),
+      const Tab(text: 'Welcome Pages'),
+      const Tab(text: 'Bingo Boards'),
+      const Tab(text: 'Question Packages'),
+      const Tab(text: 'Mini-Games'),
+      const Tab(text: 'Feedback'),
+      if (widget.isMaster) const Tab(text: 'Admin Accounts'),
+    ];
+
+    final tabViews = [
+      EventsTab(currentUsername: widget.username),
+      const WelcomePageTab(),
+      const BingoBoardsTab(),
+      QuestionPackagesTab(currentUsername: widget.username),
+      const MiniGamesTab(),
+      const FeedbackTab(),
+      if (widget.isMaster)
+        AdminAccountsTab(adminId: widget.adminId, onAccountsChanged: () => setState(() {})),
+    ];
+
+    _tabs = tabs;
+    _tabViews = tabViews;
+    _tabCount = tabs.length;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: _tabCount,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Admin Dashboard'),
+              Text(
+                'Logged in as: ${widget.username}${widget.isMaster ? ' (Master)' : ''}',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white),
+              ),
+            ],
+          ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: Center(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Logout'),
+                        content: const Text('Are you sure you want to end your session?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              widget.onLogout();
+                            },
+                            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Logout'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade600,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          bottom: TabBar(
+            isScrollable: true,
+            tabs: _tabs,
+          ),
+        ),
+        body: TabBarView(
+          children: _tabViews,
+        ),
+      ),
+    );
+  }
+}
+
+// Login Page
+class LoginPage extends StatefulWidget {
+  final Function(int, bool, String) onLoginSuccess;
+
+  const LoginPage({super.key, required this.onLoginSuccess});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  late TextEditingController usernameController;
+  late TextEditingController passwordController;
+  bool isLoading = false;
+  String? errorMessage;
+  bool _showPassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    usernameController = TextEditingController();
+    passwordController = TextEditingController();
+  }
 
   @override
   void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
+    usernameController.dispose();
+    passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _login() async {
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text;
-
-    if (username.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Please enter both username and password.');
+  Future<void> _handleLogin() async {
+    if (usernameController.text.isEmpty || passwordController.text.isEmpty) {
+      setState(() => errorMessage = 'Please enter username and password');
       return;
     }
 
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      isLoading = true;
+      errorMessage = null;
     });
 
-    final success = await AuthService.login(username, password);
+    try {
+      final result = await AuthAPI.login(usernameController.text, passwordController.text);
 
-    if (!mounted) return;
-
-    setState(() => _isLoading = false);
-
-    if (success) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const AdminHomePage()),
-      );
-    } else {
-      setState(() => _errorMessage = 'Invalid username or password.');
+      if (mounted) {
+        if (result['success'] == true) {
+          final adminId = result['adminId'] as int;
+          final isMaster = result['isMaster'] == true;
+          final username = result['username'] as String;
+          widget.onLoginSuccess(adminId, isMaster, username);
+        } else {
+          setState(() {
+            errorMessage = result['message'] ?? 'Login failed';
+            isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Error: $e';
+          isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.blue.shade400, Colors.blue.shade700],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.admin_panel_settings, size: 64, color: Colors.blue),
-                const SizedBox(height: 16),
-                const Text(
-                  'Admin Login',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 32),
-                TextField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Username',
-                    prefixIcon: Icon(Icons.person),
-                    border: OutlineInputBorder(),
+                Container(
+                  width: 400,
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock),
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _login(),
-                ),
-                const SizedBox(height: 8),
-                if (_errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _login,
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Login', style: TextStyle(fontSize: 16)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Icon(Icons.admin_panel_settings, size: 64, color: Colors.blue),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Admin Login',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      TextField(
+                        controller: usernameController,
+                        enabled: !isLoading,
+                        decoration: InputDecoration(
+                          labelText: 'Username',
+                          hintText: 'Enter your username',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          prefixIcon: const Icon(Icons.person),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: passwordController,
+                        enabled: !isLoading,
+                        obscureText: !_showPassword,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          hintText: 'Enter your password',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          prefixIcon: const Icon(Icons.lock),
+                          suffixIcon: IconButton(
+                            icon: Icon(_showPassword ? Icons.visibility : Icons.visibility_off),
+                            onPressed: () => setState(() => _showPassword = !_showPassword),
+                          ),
+                        ),
+                      ),
+                      if (errorMessage != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade100,
+                            border: Border.all(color: Colors.red),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            errorMessage!,
+                            style: const TextStyle(color: Colors.red),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: isLoading ? null : _handleLogin,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: Colors.blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Login',
+                                style: TextStyle(fontSize: 16, color: Colors.white),
+                              ),
+                      ),
+
+                    ],
                   ),
                 ),
               ],
@@ -224,45 +438,516 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   }
 }
 
-class AdminHomePage extends StatelessWidget {
-  const AdminHomePage({super.key});
+// Admin Accounts Management Tab
+class AdminAccountsTab extends StatefulWidget {
+  final int adminId;
+  final VoidCallback onAccountsChanged;
+
+  const AdminAccountsTab({
+    super.key,
+    required this.adminId,
+    required this.onAccountsChanged,
+  });
+
+  @override
+  State<AdminAccountsTab> createState() => _AdminAccountsTabState();
+}
+
+class _AdminAccountsTabState extends State<AdminAccountsTab> {
+  List<Map<String, dynamic>> admins = [];
+  bool isLoading = false;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdmins();
+  }
+
+  Future<void> _loadAdmins() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final result = await AuthAPI.getAllAdmins(widget.adminId);
+      setState(() {
+        admins = result;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Failed to load admins: $e';
+        isLoading = false;
+      });
+    }
+  }
+
+  void _showCreateDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => CreateAdminDialog(
+        adminId: widget.adminId,
+        onSuccess: () {
+          _loadAdmins();
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  void _showEditDialog(Map<String, dynamic> admin) {
+    showDialog(
+      context: context,
+      builder: (context) => EditAdminDialog(
+        adminId: widget.adminId,
+        targetAdmin: admin,
+        onSuccess: () {
+          _loadAdmins();
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  void _deleteAdmin(Map<String, dynamic> admin) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: Text('Are you sure you want to delete the account "${admin['username']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                final result = await AuthAPI.deleteAdmin(widget.adminId, admin['id']);
+                if (mounted) {
+                  if (result['success'] == true) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Account deleted successfully')),
+                    );
+                    _loadAdmins();
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(result['message'] ?? 'Failed to delete')),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 6, // Number of tabs
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Admin Dashboard'),
-          bottom: const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(text: 'Events'),
-              Tab(text: 'Welcome Pages'),
-              Tab(text: 'Bingo Boards'),
-              Tab(text: 'Question Packages'),
-              Tab(text: 'Mini-Games'),
-              Tab(text: 'Feedback'),
-            ],
-          ),
-        ),
-        body: const TabBarView(
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            EventsTab(),
-            WelcomePageTab(),
-            BingoBoardsTab(),
-            QuestionPackagesTab(),
-            MiniGamesTab(),
-            FeedbackTab(),
+            Text('Error: $errorMessage'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadAdmins,
+              child: const Text('Retry'),
+            ),
           ],
         ),
+      );
+    }
+
+    return Scaffold(
+      body: Column(
+        children: [
+          Expanded(
+            child: admins.isEmpty
+                ? const Center(child: Text('No admin accounts created yet.'))
+                : ListView.builder(
+                    itemCount: admins.length,
+                    itemBuilder: (context, index) {
+                      final admin = admins[index];
+                      final isMaster = admin['isMaster'] == true;
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        child: ListTile(
+                          title: Text(
+                            admin['username'],
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (isMaster)
+                                const Text(
+                                  'Master Account',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              Text(
+                                'Created: ${admin['createdAt'] ?? 'Unknown'}',
+                              ),
+                            ],
+                          ),
+                          trailing: isMaster
+                              ? null
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, color: Colors.blue),
+                                      tooltip: 'Edit account',
+                                      onPressed: () => _showEditDialog(admin),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, color: Colors.red),
+                                      tooltip: 'Delete account',
+                                      onPressed: () => _deleteAdmin(admin),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _loadAdmins,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh'),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: _showCreateDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create New Admin'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
+// Create Admin Dialog
+class CreateAdminDialog extends StatefulWidget {
+  final int adminId;
+  final VoidCallback onSuccess;
+
+  const CreateAdminDialog({
+    super.key,
+    required this.adminId,
+    required this.onSuccess,
+  });
+
+  @override
+  State<CreateAdminDialog> createState() => _CreateAdminDialogState();
+}
+
+class _CreateAdminDialogState extends State<CreateAdminDialog> {
+  late TextEditingController usernameController;
+  late TextEditingController passwordController;
+  bool isLoading = false;
+  bool _showPassword = false;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    usernameController = TextEditingController();
+    passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createAccount() async {
+    if (usernameController.text.isEmpty || passwordController.text.isEmpty) {
+      setState(() => errorMessage = 'Please fill in all fields');
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      final result = await AuthAPI.createAdmin(
+        widget.adminId,
+        usernameController.text,
+        passwordController.text,
+      );
+
+      if (mounted) {
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Admin account created successfully')),
+          );
+          widget.onSuccess();
+        } else {
+          setState(() {
+            errorMessage = result['message'] ?? 'Failed to create account';
+            isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Error: $e';
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Create New Admin Account'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: usernameController,
+            enabled: !isLoading,
+            decoration: InputDecoration(
+              labelText: 'Username',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              helperText: 'Minimum 3 characters',
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: passwordController,
+            enabled: !isLoading,
+            obscureText: !_showPassword,
+            decoration: InputDecoration(
+              labelText: 'Password',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              helperText: 'Minimum 6 characters',
+              suffixIcon: IconButton(
+                icon: Icon(_showPassword ? Icons.visibility : Icons.visibility_off),
+                onPressed: () => setState(() => _showPassword = !_showPassword),
+              ),
+            ),
+          ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade100,
+                border: Border.all(color: Colors.red),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                errorMessage!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: isLoading ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: isLoading ? null : _createAccount,
+          child: isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Create'),
+        ),
+      ],
+    );
+  }
+}
+
+// Edit Admin Dialog
+class EditAdminDialog extends StatefulWidget {
+  final int adminId;
+  final Map<String, dynamic> targetAdmin;
+  final VoidCallback onSuccess;
+
+  const EditAdminDialog({
+    super.key,
+    required this.adminId,
+    required this.targetAdmin,
+    required this.onSuccess,
+  });
+
+  @override
+  State<EditAdminDialog> createState() => _EditAdminDialogState();
+}
+
+class _EditAdminDialogState extends State<EditAdminDialog> {
+  late TextEditingController usernameController;
+  late TextEditingController passwordController;
+  bool isLoading = false;
+  bool _showPassword = false;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    usernameController = TextEditingController(text: widget.targetAdmin['username']);
+    passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _updateAccount() async {
+    if (usernameController.text.isEmpty) {
+      setState(() => errorMessage = 'Username cannot be empty');
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      final result = await AuthAPI.updateAdmin(
+        widget.adminId,
+        widget.targetAdmin['id'],
+        usernameController.text != widget.targetAdmin['username'] ? usernameController.text : null,
+        passwordController.text.isNotEmpty ? passwordController.text : null,
+      );
+
+      if (mounted) {
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Admin account updated successfully')),
+          );
+          widget.onSuccess();
+        } else {
+          setState(() {
+            errorMessage = result['message'] ?? 'Failed to update account';
+            isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Error: $e';
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Admin Account'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: usernameController,
+            enabled: !isLoading,
+            decoration: InputDecoration(
+              labelText: 'Username',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              helperText: 'Leave password empty to keep current',
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: passwordController,
+            enabled: !isLoading,
+            obscureText: !_showPassword,
+            decoration: InputDecoration(
+              labelText: 'New Password (optional)',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              helperText: 'Minimum 6 characters, leave empty to keep current',
+              suffixIcon: IconButton(
+                icon: Icon(_showPassword ? Icons.visibility : Icons.visibility_off),
+                onPressed: () => setState(() => _showPassword = !_showPassword),
+              ),
+            ),
+          ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade100,
+                border: Border.all(color: Colors.red),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                errorMessage!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: isLoading ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: isLoading ? null : _updateAccount,
+          child: isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Update'),
+        ),
+      ],
+    );
+  }
+}
+
 class EventsTab extends StatefulWidget {
-  const EventsTab({super.key});
+  final String? currentUsername;
+
+  const EventsTab({super.key, this.currentUsername});
 
   @override
   State<EventsTab> createState() => _EventsTabState();
@@ -348,7 +1033,7 @@ class _EventsTabState extends State<EventsTab> {
               Navigator.pop(context);
               if (id != null) {
                 try {
-                  await EventAPI.deleteEvent(id);
+                  await EventAPI.deleteEvent(id, adminUsername: widget.currentUsername);
                   _loadAll();
                 } catch (e) {
                   if (mounted) {
@@ -490,6 +1175,7 @@ class _EventsTabState extends State<EventsTab> {
           welcomePages: welcomePages,
           bingoBoards: bingoBoards,
           questionPackages: questionPackages,
+          currentUsername: widget.currentUsername,
           onSave: () {
             _loadAll();
             Navigator.pop(context);
@@ -502,8 +1188,25 @@ class _EventsTabState extends State<EventsTab> {
   String _getGuestUrl() {
     if (kIsWeb) {
       final adminUri = Uri.base;
-      final guestPort = adminUri.port == 8082 ? 8081 : 8081;
-      return '${adminUri.scheme}://${adminUri.host}:$guestPort';
+      final host = adminUri.host;
+      
+      // Handle Localhost testing
+      if (host == 'localhost' || host == '127.0.0.1') {
+        final guestPort = adminUri.port == 8082 ? 8081 : 8081;
+        return '${adminUri.scheme}://$host:$guestPort';
+      }
+      
+      // Handle Local IP testing (e.g., 192.168.x.x)
+      // If we are on an IP but using port 8082, assume guest is on 8081
+      if (adminUri.port == 8082) {
+        return '${adminUri.scheme}://$host:8081';
+      }
+
+      // PRODUCTION / ALMALINUX DEPLOYMENT:
+      // If you deploy to a server where they are in subdirectories like:
+      // http://your-server-ip/admin and http://your-server-ip/guest
+      // This will automatically point to the /guest folder on the same server.
+      return '${adminUri.scheme}://$host/guest';
     }
     return 'http://localhost:8081';
   }
@@ -720,6 +1423,7 @@ class _EventsTabState extends State<EventsTab> {
                           welcomePages: welcomePages,
                           bingoBoards: bingoBoards,
                           questionPackages: questionPackages,
+                          currentUsername: widget.currentUsername,
                           onSave: () {
                             _loadAll();
                             Navigator.pop(context);
@@ -752,6 +1456,7 @@ class EventEditor extends StatefulWidget {
   final List<Map<String, dynamic>> bingoBoards;
   final List<Map<String, dynamic>> questionPackages;
   final VoidCallback onSave;
+  final String? currentUsername;
 
   const EventEditor({
     super.key,
@@ -766,6 +1471,7 @@ class EventEditor extends StatefulWidget {
     required this.bingoBoards,
     required this.questionPackages,
     required this.onSave,
+    this.currentUsername,
   });
 
   @override
@@ -774,7 +1480,6 @@ class EventEditor extends StatefulWidget {
 
 class _EventEditorState extends State<EventEditor> {
   late TextEditingController nameController;
-  late TextEditingController creatorController;
   int? selectedWelcomePageId;
   int? selectedBingoBoardId;
   int? selectedQuestionPackageId;
@@ -785,7 +1490,7 @@ class _EventEditorState extends State<EventEditor> {
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.existingName ?? '');
-    creatorController = TextEditingController(text: widget.existingCreator ?? '');
+    
     selectedWelcomePageId = widget.existingWelcomePageId;
     selectedBingoBoardId = widget.existingBingoBoardId;
     selectedQuestionPackageId = widget.existingQuestionPackageId;
@@ -795,7 +1500,6 @@ class _EventEditorState extends State<EventEditor> {
   @override
   void dispose() {
     nameController.dispose();
-    creatorController.dispose();
     super.dispose();
   }
 
@@ -824,12 +1528,13 @@ class _EventEditorState extends State<EventEditor> {
     try {
       await EventAPI.saveEvent(
         name: nameController.text,
-        creator: creatorController.text,
+        creator: widget.existingCreator ?? '',
         welcomePageId: selectedWelcomePageId!,
         bingoBoardId: selectedBingoBoardId!,
         gameNames: selectedGameNames,
         questionPackageId: selectedQuestionPackageId,
         id: widget.existingId,
+        adminUsername: widget.currentUsername,
       );
 
       if (mounted) {
@@ -874,16 +1579,20 @@ class _EventEditorState extends State<EventEditor> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: creatorController,
-                  enabled: !isSaving,
-                  decoration: const InputDecoration(
-                    labelText: 'Creator Name',
-                    hintText: 'Who is creating this event',
-                    border: OutlineInputBorder(),
+                // Creator field only shown when editing existing events (read-only)
+                if (widget.existingId != null)
+                  Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          'Creator: ${widget.existingCreator ?? 'Unknown'}',
+                          style: TextStyle(color: Colors.grey.shade700, fontStyle: FontStyle.italic),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 24),
                 // Welcome Page dropdown
                 DropdownButtonFormField<int>(
                   initialValue: widget.welcomePages.any((p) => p['id'] == selectedWelcomePageId)
@@ -1761,35 +2470,37 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
       appBar: AppBar(
         title: Text(widget.board == null ? 'Create New Bingo Board' : 'Edit Bingo Board'),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              SizedBox(
-                width: 350,
-                child: TextField(
-                  controller: boardNameController,
-                  enabled: !isSaving,
-                  decoration: const InputDecoration(
-                    labelText: 'Board Name',
-                    isDense: false,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      body: SingleChildScrollView(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 350,
+                  child: TextField(
+                    controller: boardNameController,
+                    enabled: !isSaving,
+                    decoration: const InputDecoration(
+                      labelText: 'Board Name',
+                      isDense: false,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                    style: const TextStyle(fontSize: 14),
                   ),
-                  style: const TextStyle(fontSize: 14),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: SizedBox(
-                  width: 900,
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: min(MediaQuery.of(context).size.width * 0.95, 900),
                   child: GridView.builder(
+                    shrinkWrap: true,
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 5, // 5x5 grid
                       crossAxisSpacing: 6.0,
                       mainAxisSpacing: 6.0,
                     ),
-                    physics: const NeverScrollableScrollPhysics(),
+                    physics: const NeverScrollableScrollPhysics(), // Keeps it integrated with page scroll
                     itemCount: 25,
                     itemBuilder: (context, index) {
                       return Container(
@@ -1818,30 +2529,36 @@ class _NewBingoBoardFormState extends State<NewBingoBoardForm> {
                     },
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: isSaving ? null : _showPreview,
-                    icon: const Icon(Icons.preview),
-                    label: const Text('Preview'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: isSaving ? null : _saveBoard,
-                    child: isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Save'),
-                  ),
-                ],
-              ),
-            ],
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: isSaving ? null : _showPreview,
+                      icon: const Icon(Icons.preview),
+                      label: const Text('Preview'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: isSaving ? null : _saveBoard,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      child: isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Save Board'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32), // Bottom padding for scrolling
+              ],
+            ),
           ),
         ),
       ),
@@ -1882,72 +2599,78 @@ class _BingoBoardPreviewState extends State<BingoBoardPreview> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                widget.board.name.isEmpty ? 'Unnamed Board' : widget.board.name,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              // To adjust preview size, change width and height below (e.g., 650x650, 700x700, etc.)
-              SizedBox(
-                width: 900,
-                height: 900,
-                child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 5, // 5x5 grid
-                    crossAxisSpacing: 8.0,
-                    mainAxisSpacing: 8.0,
-                  ),
-                  itemCount: 25,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemBuilder: (context, index) {
-                    final text = widget.boxControllers[index].text;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          selectedBoxes[index] = !selectedBoxes[index];
-                        });
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: selectedBoxes[index] ? Colors.green : Colors.white,
-                          border: Border.all(
-                            color: Colors.black,
-                            width: 2,
+      body: SingleChildScrollView(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  widget.board.name.isEmpty ? 'Unnamed Board' : widget.board.name,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: min(MediaQuery.of(context).size.width * 0.95, 700),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 5, // 5x5 grid
+                      crossAxisSpacing: 8.0,
+                      mainAxisSpacing: 8.0,
+                    ),
+                    itemCount: 25,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemBuilder: (context, index) {
+                      final text = widget.boxControllers[index].text;
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedBoxes[index] = !selectedBoxes[index];
+                          });
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: selectedBoxes[index] ? Colors.green : Colors.white,
+                            border: Border.all(
+                              color: Colors.black,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(6.0),
                           ),
-                          borderRadius: BorderRadius.circular(6.0),
-                        ),
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(4.0),
-                            child: Text(
-                              text.isEmpty ? 'Box ${index + 1}' : text,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w500),
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(4.0),
+                              child: Text(
+                                text.isEmpty ? 'Box ${index + 1}' : text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                '(Click boxes to test)',
-                style: TextStyle(fontSize: 11, color: Colors.grey),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
+                const SizedBox(height: 24),
+                const Text(
+                  '(Click boxes to test)',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  ),
+                  child: const Text('Close'),
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
           ),
         ),
       ),
@@ -1958,7 +2681,8 @@ class _BingoBoardPreviewState extends State<BingoBoardPreview> {
 // ==================== Question Packages Tab ====================
 
 class QuestionPackagesTab extends StatefulWidget {
-  const QuestionPackagesTab({super.key});
+  final String currentUsername;
+  const QuestionPackagesTab({super.key, required this.currentUsername});
 
   @override
   State<QuestionPackagesTab> createState() => _QuestionPackagesTabState();
@@ -2014,7 +2738,7 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
               Navigator.pop(context);
               if (id != null) {
                 try {
-                  await QuestionPackageAPI.deleteQuestionPackage(id);
+                  await QuestionPackageAPI.deleteQuestionPackage(id, adminUsername: widget.currentUsername);
                   _loadPackages();
                 } catch (e) {
                   if (mounted) {
@@ -2038,7 +2762,7 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
     if (id == null) return;
 
     try {
-      await QuestionPackageAPI.duplicateQuestionPackage(id);
+      await QuestionPackageAPI.duplicateQuestionPackage(id, adminUsername: widget.currentUsername);
       _loadPackages();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2086,17 +2810,21 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
             (pkg['questions'] as List).map((q) => Map<String, dynamic>.from(q)))
         : <Map<String, dynamic>>[];
 
+    final existingNames = packages
+        .where((p) => p['id'] != pkg['id'])
+        .map((p) => (p['name'] ?? '').toString())
+        .toList();
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => QuestionPackageEditor(
           existingId: pkg['id'] as int?,
           existingName: (pkg['name'] ?? '').toString(),
+          existingCreator: (pkg['creator'] ?? '').toString(),
           existingQuestions: questions,
-          existingPackageNames: packages
-              .where((p) => p['id'] != pkg['id'])
-              .map((p) => (p['name'] ?? '').toString())
-              .toList(),
+          existingPackageNames: existingNames,
+          currentUsername: widget.currentUsername,
           onSave: () {
             _loadPackages();
             Navigator.pop(context);
@@ -2104,6 +2832,100 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
         ),
       ),
     );
+  }
+
+  Future<void> _loadSamplePackages() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Load Default Packages'),
+        content: const Text('This will create 3 default trivia packages. Continue?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _createSamplePackages();
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _createSamplePackages() async {
+    try {
+      // Elintarvike
+      await QuestionPackageAPI.saveQuestionPackage(
+        name: 'Elintarvike',
+        questions: [
+          {'questionText': 'Mikä on proteiinin päätehtävä elimistössä?', 'answer1': 'Kudosten rakentaminen ja korjaaminen', 'answer2': 'Energian tuottaminen', 'answer3': 'Vitamiinin varastointi', 'correctAnswer': 1},
+          {'questionText': 'Kuinka monta kaloria on yhdessä grammassa hiilihydraattia?', 'answer1': '4 kaloria', 'answer2': '9 kaloria', 'answer3': '7 kaloria', 'correctAnswer': 1},
+          {'questionText': 'Mikä on vitamiini D:n päätehtävä?', 'answer1': 'Kalsiumin imeytyminen ja luuston terveys', 'answer2': 'Veren hyytyminen', 'answer3': 'Näkemisen parantaminen', 'correctAnswer': 1},
+          {'questionText': 'Kuinka monta prosenttia ihmisen kehosta on vettä?', 'answer1': 'Noin 60-70%', 'answer2': 'Noin 30-40%', 'answer3': 'Noin 80-90%', 'correctAnswer': 1},
+          {'questionText': 'Kuinka monta kaloria on yhdessä grammassa rasvaa?', 'answer1': '9 kaloria', 'answer2': '4 kaloria', 'answer3': '7 kaloria', 'correctAnswer': 1},
+          {'questionText': 'Mitä mineraalia tarvitaan raudan imeytymiseen?', 'answer1': 'C-vitamiinia', 'answer2': 'B12-vitamiinia', 'answer3': 'D-vitamiinia', 'correctAnswer': 1},
+          {'questionText': 'Kuinka paljon kuitua pitäisi syödä päivittäin?', 'answer1': 'Noin 25-30 grammaa', 'answer2': 'Noin 5-10 grammaa', 'answer3': 'Noin 50-60 grammaa', 'correctAnswer': 1},
+          {'questionText': 'Mitä rasvahappoja kutsutaan välttämättömiksi?', 'answer1': 'Omega-3 ja omega-6 rasvahappoja', 'answer2': 'Saturoidut rasvahapot', 'answer3': 'Trans-rasvahapot', 'correctAnswer': 1},
+          {'questionText': 'Mikä elintarvike on runsas raudassa?', 'answer1': 'Punaiset lihavalmisteet ja maksantuotteet', 'answer2': 'Maitotuotteet', 'answer3': 'Viljatuotteet', 'correctAnswer': 1},
+          {'questionText': 'Mitä aminohappoja kutsutaan välttämättömiksi?', 'answer1': 'Niitä, joita keho ei voi valmistaa itse', 'answer2': 'Kaikki aminohapot', 'answer3': 'Vain kasveista saatavat aminohapot', 'correctAnswer': 1},
+        ],
+        isDefault: true,
+      );
+
+      // TuVa
+      await QuestionPackageAPI.saveQuestionPackage(
+        name: 'TuVa',
+        questions: [
+          {'questionText': 'Mikä on betonin pääkomponentti?', 'answer1': 'Sementti, sora ja vesi', 'answer2': 'Vain sementti', 'answer3': 'Teräs ja sora', 'correctAnswer': 1},
+          {'questionText': 'Mitä tarkoittaa BIM-malli?', 'answer1': 'Building Information Modeling', 'answer2': 'Basic Industrial Model', 'answer3': 'Broad Infrastructure Management', 'correctAnswer': 1},
+          {'questionText': 'Kuinka monta prosenttia betonia kierrätetään Suomessa?', 'answer1': 'Noin 90%', 'answer2': 'Noin 50%', 'answer3': 'Noin 20%', 'correctAnswer': 1},
+          {'questionText': 'Mikä on perustamistapojen paras valinta pehmeällä maalla?', 'answer1': 'Paaluperustus', 'answer2': 'Teräsperustus', 'answer3': 'Pintaperustus', 'correctAnswer': 1},
+          {'questionText': 'Kuinka kauan harkkobetoni kuivuu?', 'answer1': 'Noin 7-14 päivää', 'answer2': 'Noin 1-2 päivää', 'answer3': 'Noin 30 päivää', 'correctAnswer': 1},
+          {'questionText': 'Mitä merkitsee CE-merkintä rakennustuotteissa?', 'answer1': 'EU-vaatimustenmukaisuusdeklaraatio', 'answer2': 'Certified European', 'answer3': 'Construction Efficient', 'correctAnswer': 1},
+          {'questionText': 'Mikä on rakentamisen turvallisuusjohtajan päätehtävä?', 'answer1': 'Valvoa työturvallisuutta rakentamisella', 'answer2': 'Suunnitella rakennuksia', 'answer3': 'Hallita budjetin', 'correctAnswer': 1},
+          {'questionText': 'Kuinka pitkä on standardi teräspalkin pituus?', 'answer1': 'Vaihtelee, yleensä 6-12 metriä', 'answer2': 'Aina 5 metriä', 'answer3': 'Aina 20 metriä', 'correctAnswer': 1},
+          {'questionText': 'Mikä on logistiikan päätehtävä?', 'answer1': 'Kuljetus, varastointi ja jakelu', 'answer2': 'Tuotteiden valmistus', 'answer3': 'Markkinointi', 'correctAnswer': 1},
+          {'questionText': 'Kuinka paljon kuorma-auton maksimipainoluokka on?', 'answer1': 'Noin 11,5 tonnia', 'answer2': 'Noin 5 tonnia', 'answer3': 'Noin 20 tonnia', 'correctAnswer': 1},
+        ],
+        isDefault: true,
+      );
+
+      // Matkailu
+      await QuestionPackageAPI.saveQuestionPackage(
+        name: 'Matkailu',
+        questions: [
+          {'questionText': 'Mikä on matkailun merkitys Suomen taloudelle?', 'answer1': 'Noin 2-3% BKT:stä ja työpaikat', 'answer2': 'Noin 10% BKT:stä', 'answer3': 'Alle 1% BKT:stä', 'correctAnswer': 1},
+          {'questionText': 'Mitä tarkoittaa kestävä matkailu?', 'answer1': 'Vastuullinen matkailu, joka ei vahingoita ympäristöä', 'answer2': 'Kallis matkailu', 'answer3': 'Pitkäkestoinen matkailu', 'correctAnswer': 1},
+          {'questionText': 'Mikä on Suomen suosituin matkailualue?', 'answer1': 'Lappi ja pohjoisen luonto', 'answer2': 'Etelä-Suomi', 'answer3': 'Keskustan kaupungit', 'correctAnswer': 1},
+          {'questionText': 'Mitä tarkoittaa UNWTO?', 'answer1': 'United Nations World Tourism Organization', 'answer2': 'Universal World Tour Organization', 'answer3': 'Union of World Tourism Offices', 'correctAnswer': 1},
+          {'questionText': 'Kuinka monta maata kuuluu Euroopan Unioniin?', 'answer1': '27 maata', 'answer2': '25 maata', 'answer3': '30 maata', 'correctAnswer': 1},
+          {'questionText': 'Mitä on kulttuurimatkailu?', 'answer1': 'Matkailu, joka keskittyy kulttuuriin ja historiaan', 'answer2': 'Matkailu kaupungeissa', 'answer3': 'Matkailu museoissa', 'correctAnswer': 1},
+          {'questionText': 'Kuinka monta UNESCO maailmanperintökohdetta Suomella on?', 'answer1': '7 kohdetta', 'answer2': '10 kohdetta', 'answer3': '5 kohdetta', 'correctAnswer': 1},
+          {'questionText': 'Kuinka monta kansainvälistä matkailijaa Suomeen tulee vuosittain?', 'answer1': 'Noin 2-3 miljoonaa', 'answer2': 'Noin 10 miljoonaa', 'answer3': 'Noin 500 000', 'correctAnswer': 1},
+          {'questionText': 'Mikä on matkailu- ja ravintola-alan pääorganisaatio Suomessa?', 'answer1': 'Matkailu- ja ravintola-alan liitto', 'answer2': 'Suomen matkailu ry', 'answer3': 'Visit Finland', 'correctAnswer': 1},
+          {'questionText': 'Mitkä ovat Suomen suurimmat matkailukohteet?', 'answer1': 'Pohjolan valot, luonto ja kulttuuriperintö', 'answer2': 'Teollisuus ja kauppa', 'answer3': 'Urheilu ja tapahtumat', 'correctAnswer': 1},
+        ],
+        isDefault: true,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Default packages created successfully!')),
+        );
+        _loadPackages();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error creating packages: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -2209,13 +3031,13 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
                 const SizedBox(width: 16),
                 ElevatedButton.icon(
                   onPressed: () {
+                    final existingNames = packages.map((p) => (p['name'] ?? '').toString()).toList();
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => QuestionPackageEditor(
-                          existingPackageNames: packages
-                              .map((p) => (p['name'] ?? '').toString())
-                              .toList(),
+                          existingPackageNames: existingNames,
+                          currentUsername: widget.currentUsername,
                           onSave: () {
                             _loadPackages();
                             Navigator.pop(context);
@@ -2241,16 +3063,20 @@ class _QuestionPackagesTabState extends State<QuestionPackagesTab> {
 class QuestionPackageEditor extends StatefulWidget {
   final int? existingId;
   final String? existingName;
+  final String? existingCreator;
   final List<Map<String, dynamic>>? existingQuestions;
   final List<String> existingPackageNames;
+  final String currentUsername;
   final VoidCallback onSave;
 
   const QuestionPackageEditor({
     super.key,
     this.existingId,
     this.existingName,
+    this.existingCreator,
     this.existingQuestions,
     required this.existingPackageNames,
+    required this.currentUsername,
     required this.onSave,
   });
 
@@ -2376,6 +3202,7 @@ class _QuestionPackageEditorState extends State<QuestionPackageEditor> {
         name: name,
         questions: questionsList,
         id: widget.existingId,
+        adminUsername: widget.currentUsername,
       );
 
       if (mounted) {
@@ -2418,6 +3245,14 @@ class _QuestionPackageEditorState extends State<QuestionPackageEditor> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                if (widget.existingId != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12.0),
+                    child: Text(
+                      'Creator: ${widget.existingCreator ?? 'Unknown'}',
+                      style: TextStyle(color: Colors.grey.shade700, fontStyle: FontStyle.italic),
+                    ),
+                  ),
                 Text(
                   'Questions (${questions.length}/20) — minimum 3 required',
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

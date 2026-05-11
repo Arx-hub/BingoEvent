@@ -1,8 +1,9 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_config.dart';
 
 class FeedbackApiService {
-  static const String baseUrl = '/api/bingo';
+  static String get baseUrl => ApiConfig.baseUrl;
 
   static Future<List<Map<String, dynamic>>> getAllFeedback() async {
     try {

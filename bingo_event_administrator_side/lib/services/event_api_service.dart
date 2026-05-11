@@ -1,8 +1,9 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_config.dart';
 
 class EventAPI {
-  static const String baseUrl = '/api/bingo';
+  static String get baseUrl => ApiConfig.baseUrl;
 
   static Future<Map<String, dynamic>> saveEvent({
     required String name,
@@ -12,20 +13,31 @@ class EventAPI {
     required List<String> gameNames,
     int? questionPackageId,
     int? id,
+    String? adminUsername,
   }) async {
     try {
-      final url = Uri.parse('$baseUrl/events');
+      final url = id == null && adminUsername != null
+          ? Uri.parse('$baseUrl/events?adminUsername=${Uri.encodeComponent(adminUsername)}')
+          : Uri.parse('$baseUrl/events');
+      
       final Map<String, dynamic> bodyMap = {
         'name': name,
-        'creator': creator,
         'welcomePageId': welcomePageId,
         'bingoBoardId': bingoBoardId,
         'gameNames': gameNames,
         'questionPackageId': questionPackageId,
       };
+      
+      // Only include creator if not creating a new event
+      // (when creating new, API will auto-populate from adminUsername query param)
       if (id != null) {
         bodyMap['id'] = id;
+        bodyMap['creator'] = creator;
+      } else if (!creator.isEmpty) {
+        // For new events, only include creator if explicitly provided
+        bodyMap['creator'] = creator;
       }
+      
       final body = jsonEncode(bodyMap);
 
       final response = await http.post(
@@ -37,10 +49,11 @@ class EventAPI {
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Failed to save event: ${response.statusCode} - ${response.body}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to save event: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error saving event: $e');
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -68,9 +81,11 @@ class EventAPI {
     }
   }
 
-  static Future<bool> deleteEvent(int id) async {
+  static Future<bool> deleteEvent(int id, {String? adminUsername}) async {
     try {
-      final url = Uri.parse('$baseUrl/events/$id');
+      final url = adminUsername != null
+          ? Uri.parse('$baseUrl/events/$id?adminUsername=${Uri.encodeComponent(adminUsername)}')
+          : Uri.parse('$baseUrl/events/$id');
 
       final response = await http.delete(
         url,
@@ -81,10 +96,11 @@ class EventAPI {
         final data = jsonDecode(response.body);
         return data['success'] == true;
       } else {
-        throw Exception('Failed to delete event: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to delete event: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error deleting event: $e');
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
 

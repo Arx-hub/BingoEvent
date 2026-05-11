@@ -1,8 +1,9 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_config.dart';
 
 class BingoBoardAPI {
-  static const String baseUrl = '/api/bingo';
+  static String get baseUrl => ApiConfig.baseUrl;
   
   // Save a bingo board to the database
   static Future<Map<String, dynamic>> saveBoard({
